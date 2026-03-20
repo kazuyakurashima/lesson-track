@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { BookOpen, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,9 +69,13 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg shadow-primary/25">
-            <BookOpen className="h-8 w-8" />
-          </div>
+          <Image
+            src="/icon.png"
+            alt="Lesson Track"
+            width={64}
+            height={64}
+            className="mx-auto mb-4 rounded-2xl shadow-lg shadow-primary/25"
+          />
           <h1 className="text-2xl font-bold tracking-tight">Lesson Track</h1>
           <p className="text-muted-foreground text-sm mt-1">個別指導 学習管理</p>
         </div>
