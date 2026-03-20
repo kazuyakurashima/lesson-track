@@ -90,7 +90,7 @@ export async function POST(request: Request) {
           ],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: 300,
+            maxOutputTokens: 2048,
           },
         }),
       }
@@ -106,11 +106,17 @@ export async function POST(request: Request) {
     }
 
     const geminiData = await geminiResponse.json();
-    const text =
-      geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    // Gemini 2.5 Pro returns thinking + response in separate parts
+    // Extract text from all non-thought parts
+    const parts = geminiData.candidates?.[0]?.content?.parts ?? [];
+    const text = parts
+      .filter((p: { thought?: boolean; text?: string }) => !p.thought && p.text)
+      .map((p: { text: string }) => p.text)
+      .join("");
 
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    // Extract JSON from response (handle ```json ... ``` wrapping)
+    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
     if (!jsonMatch) {
       return NextResponse.json(
         { error: "Could not parse AI response" },
