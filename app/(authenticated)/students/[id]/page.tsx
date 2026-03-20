@@ -8,6 +8,7 @@ import {
   Circle,
   Disc,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import type { ContentCategory } from "@/lib/types/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -228,7 +229,121 @@ export default async function StudentDetailPage({ params }: Props) {
             )}
           </div>
         </div>
+        <Link
+          href={`/students/${id}/edit`}
+          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+        >
+          <Pencil className="h-5 w-5" />
+        </Link>
       </div>
+
+      {/* Calendar + Learning Pace */}
+      {(() => {
+        const allRecords = records ?? [];
+        const lessonDates = [...new Set(allRecords.map((r) => r.lesson_date))].sort();
+
+        // Calendar: current month
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+        const datesThisMonth = new Set(
+          lessonDates.filter((d) => d.startsWith(monthStr))
+        );
+
+        // Learning pace: units completed per week (last 4 weeks)
+        const fourWeeksAgo = new Date(now);
+        fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+        const fourWeeksAgoStr = fourWeeksAgo.toISOString().slice(0, 10);
+        const recentLearning = allRecords.filter(
+          (r) => r.lesson_date >= fourWeeksAgoStr && r.step_type === "learning"
+        );
+        const weeklyPace =
+          recentLearning.length > 0
+            ? Math.round((recentLearning.length / 4) * 10) / 10
+            : 0;
+        const totalLessons = lessonDates.length;
+
+        const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+
+        return (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Mini Calendar */}
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm font-semibold">
+                  {year}年{month + 1}月
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {dayLabels.map((d) => (
+                    <div key={d} className="text-[10px] font-medium text-muted-foreground py-1">
+                      {d}
+                    </div>
+                  ))}
+                  {Array.from({ length: firstDay }, (_, i) => (
+                    <div key={`empty-${i}`} />
+                  ))}
+                  {Array.from({ length: daysInMonth }, (_, i) => {
+                    const day = i + 1;
+                    const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;
+                    const hasLesson = datesThisMonth.has(dateStr);
+                    const isToday =
+                      day === now.getDate() &&
+                      month === now.getMonth() &&
+                      year === now.getFullYear();
+
+                    return (
+                      <div
+                        key={day}
+                        className={`relative text-xs py-1.5 rounded-md ${
+                          isToday
+                            ? "font-bold text-primary"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {day}
+                        {hasLesson && (
+                          <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Learning Pace */}
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm font-semibold">学習ペース</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold tabular-nums">
+                    {weeklyPace > 0 ? weeklyPace : "—"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    単元/週（直近4週）
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">授業実施日数</span>
+                  <span className="font-medium tabular-nums">{totalLessons}日</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">学習済み単元</span>
+                  <span className="font-medium tabular-nums">{recentLearning.length > 0 ? allRecords.filter((r) => r.step_type === "learning").length : 0}単元</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Subject sections with content groups */}
       {subjects.length === 0 ? (
