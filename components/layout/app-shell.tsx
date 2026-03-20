@@ -13,15 +13,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import type { UserRole } from "@/lib/types/supabase";
+import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -55,6 +48,9 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -126,29 +122,37 @@ export function AppShell({
           <span className="font-bold text-sm tracking-tight">Lesson Track</span>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="p-1 -mr-1 rounded-full outline-none">
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="p-1 -mr-1 rounded-full outline-none"
+          >
             <Avatar className="h-7 w-7">
               <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                 {user.displayName.charAt(0)}
               </AvatarFallback>
             </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="font-normal">
-              <p className="text-sm font-medium">{user.displayName}</p>
-              <p className="text-xs text-muted-foreground">{user.email}</p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive cursor-pointer"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              ログアウト
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-popover rounded-lg shadow-md border border-border p-1">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{user.displayName}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </div>
+                <div className="h-px bg-border my-1" />
+                <button
+                  onClick={() => { setMenuOpen(false); handleLogout(); }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  ログアウト
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       {/* ==================== Desktop Sidebar ==================== */}
@@ -179,36 +183,42 @@ export function AppShell({
           ))}
         </nav>
 
-        <div className="px-3 py-3 border-t border-sidebar-border">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent/50 transition-all duration-150 outline-none">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-xs font-semibold">
-                  {user.displayName.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium truncate text-sidebar-foreground">{user.displayName}</p>
-                <p className="text-[11px] text-sidebar-foreground/50">
-                  {user.role === "admin" ? "管理者" : "講師"}
-                </p>
+        <div className="px-3 py-3 border-t border-sidebar-border relative">
+          <button
+            onClick={() => setSidebarMenuOpen(!sidebarMenuOpen)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent/50 transition-all duration-150 outline-none"
+          >
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-xs font-semibold">
+                {user.displayName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-medium truncate text-sidebar-foreground">{user.displayName}</p>
+              <p className="text-[11px] text-sidebar-foreground/50">
+                {user.role === "admin" ? "管理者" : "講師"}
+              </p>
+            </div>
+          </button>
+          {sidebarMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSidebarMenuOpen(false)} />
+              <div className="absolute left-3 bottom-full mb-1 z-50 w-56 bg-popover rounded-lg shadow-md border border-border p-1">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{user.displayName}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </div>
+                <div className="h-px bg-border my-1" />
+                <button
+                  onClick={() => { setSidebarMenuOpen(false); handleLogout(); }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  ログアウト
+                </button>
               </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-56">
-              <DropdownMenuLabel className="font-normal">
-                <p className="text-sm font-medium">{user.displayName}</p>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
-                onClick={handleLogout}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                ログアウト
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </>
+          )}
         </div>
       </aside>
 
