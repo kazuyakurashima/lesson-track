@@ -323,8 +323,18 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
             ? Math.round((recentCompleted / 4) * 10) / 10
             : 0;
 
-          // Predicted completion
-          const predictedWeeks = weeklyPace > 0 ? Math.ceil(remaining / weeklyPace) : null;
+          // Predicted completion date (year/month/旬)
+          let predictedLabel: string | null = null;
+          if (weeklyPace > 0 && remaining > 0) {
+            const weeks = Math.ceil(remaining / weeklyPace);
+            const target = new Date(Date.now() + 9 * 3600000); // JST offset
+            target.setDate(target.getDate() + weeks * 7);
+            const tY = target.getUTCFullYear();
+            const tM = target.getUTCMonth() + 1;
+            const tD = target.getUTCDate();
+            const jun = tD <= 10 ? "上旬" : tD <= 20 ? "中旬" : "下旬";
+            predictedLabel = `${tY}年${tM}月${jun}`;
+          }
 
           return {
             name: cg.name,
@@ -332,7 +342,7 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
             totalCount,
             remaining,
             weeklyPace,
-            predictedWeeks,
+            predictedLabel,
           };
         }).filter((p) => p.totalCount > 0);
 
@@ -527,11 +537,11 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
                             <span className="tabular-nums">
                               {p.weeklyPace > 0 ? `${p.weeklyPace}単元/週` : "— / 未定"}
                             </span>
-                            {p.predictedWeeks != null && (
+                            {p.predictedLabel != null && (
                               <>
                                 <span>·</span>
-                                <span className="tabular-nums">
-                                  残{p.remaining}単元 ≈ {p.predictedWeeks}週
+                                <span>
+                                  残{p.remaining}単元 → {p.predictedLabel}頃
                                 </span>
                               </>
                             )}
