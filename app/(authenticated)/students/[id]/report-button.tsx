@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FileText } from "lucide-react";
-import { todayJST } from "@/lib/date-utils";
+import { todayJST, daysAgoJST } from "@/lib/date-utils";
 
 interface Props {
   studentId: string;
@@ -35,11 +35,8 @@ export default function ReportButton({ studentId }: Props) {
           to: `${ly}-${String(lm).padStart(2, "0")}-${lastDay}`,
         };
       }
-      case "last_30": {
-        const d = new Date(y, m - 1, Number(today.split("-")[2]) - 30);
-        const fromStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return { from: fromStr, to: today };
-      }
+      case "last_30":
+        return { from: daysAgoJST(30), to: today };
       case "all":
         return null;
       case "custom":
