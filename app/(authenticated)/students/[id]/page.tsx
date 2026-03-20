@@ -339,11 +339,11 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
           let predictedLabel: string | null = null;
           if (weeklyPace > 0 && remaining > 0) {
             const weeks = Math.ceil(remaining / weeklyPace);
-            const target = new Date(Date.now() + 9 * 3600000); // JST offset
-            target.setDate(target.getDate() + weeks * 7);
-            const tY = target.getUTCFullYear();
-            const tM = target.getUTCMonth() + 1;
-            const tD = target.getUTCDate();
+            const todayParts = todayStr.split("-").map(Number);
+            const target = new Date(todayParts[0], todayParts[1] - 1, todayParts[2] + weeks * 7);
+            const tY = target.getFullYear();
+            const tM = target.getMonth() + 1;
+            const tD = target.getDate();
             const jun = tD <= 10 ? "上旬" : tD <= 20 ? "中旬" : "下旬";
             predictedLabel = `${tY}年${tM}月${jun}`;
           }
