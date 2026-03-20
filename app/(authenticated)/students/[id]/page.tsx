@@ -9,6 +9,7 @@ import {
   Disc,
   ChevronRight,
   Pencil,
+  FileText,
 } from "lucide-react";
 import type { ContentCategory } from "@/lib/types/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -238,12 +239,23 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
             )}
           </div>
         </div>
-        <Link
-          href={`/students/${id}/edit`}
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-        >
-          <Pencil className="h-5 w-5" />
-        </Link>
+        <div className="flex items-center gap-1">
+          <a
+            href={`/api/students/${id}/report`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            title="保護者レポート"
+          >
+            <FileText className="h-5 w-5" />
+          </a>
+          <Link
+            href={`/students/${id}/edit`}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+          >
+            <Pencil className="h-5 w-5" />
+          </Link>
+        </div>
       </div>
 
       {/* Calendar + Learning Pace */}
