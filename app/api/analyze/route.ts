@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   if (!apiKey) {
     return NextResponse.json(
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
           ],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 512,
           },
         }),
       }

@@ -13,6 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { StepType, ContentCategory } from "@/lib/types/supabase";
+import { todayJST } from "@/lib/date-utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,11 +76,6 @@ const STEP_TYPE_OPTIONS: { value: StepType; label: string }[] = [
   { value: "step1", label: "ステップ1" },
   { value: "step2", label: "ステップ2" },
 ];
-
-/** Today in JST as YYYY-MM-DD */
-function todayJST(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
-}
 
 /** Normalize a string for fuzzy matching (fullwidth→halfwidth, trim, lowercase). */
 function normalize(s: string): string {
@@ -610,7 +606,8 @@ export default function RecordPage() {
 
     // Upload image if exists
     if (imageFile) {
-      const path = `${selectedStudent.id}/${record.id}/${imageFile.name}`;
+      const ext = imageFile.name.split(".").pop() ?? "jpg";
+      const path = `${selectedStudent.id}/${record.id}/${crypto.randomUUID()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("answer-sheets")
         .upload(path, imageFile);
@@ -1120,10 +1117,18 @@ export default function RecordPage() {
             </button>
           ))}
 
-          {/* Link to manual mode — only shown after student is selected (via photo mode, student selection happens first) */}
-          <p className="text-center pt-4 text-xs text-muted-foreground">
-            生徒を選択すると、手動入力モードも選べます
-          </p>
+          {/* Manual mode link — visible after student selection */}
+          {selectedStudent && (
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => setMode("manual")}
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors"
+              >
+                写真を使わず手動で入力する →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1204,14 +1209,14 @@ export default function RecordPage() {
             )}
           </button>
 
-          {/* Manual mode link */}
+          {/* Manual mode link also available here */}
           <div className="text-center">
             <button
               type="button"
               onClick={() => setMode("manual")}
               className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors"
             >
-              写真を使わず手動で入力する →
+              手動入力に切り替える →
             </button>
           </div>
         </div>

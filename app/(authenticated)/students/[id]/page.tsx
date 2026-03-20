@@ -16,8 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 
+import {
+  currentMonthJST,
+  daysAgoJST,
+  formatYearMonth,
+  parseYearMonth,
+} from "@/lib/date-utils";
+
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ month?: string; day?: string }>;
 }
 
 type UnitStatus = "completed" | "retest" | "in_progress" | "not_started";
@@ -46,8 +54,9 @@ interface ContentGroupProgress {
   totalCount: number;
 }
 
-export default async function StudentDetailPage({ params }: Props) {
+export default async function StudentDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { month: monthParam, day: dayParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: student } = (await supabase
@@ -242,32 +251,27 @@ export default async function StudentDetailPage({ params }: Props) {
         const allRecords = records ?? [];
         const lessonDates = [...new Set(allRecords.map((r) => r.lesson_date))].sort();
 
-        // Build a map of date → record count for intensity
+        // Build date → records map
         const dateRecordCount = new Map<string, number>();
+        const dateRecordMap = new Map<string, typeof allRecords>();
         allRecords.forEach((r) => {
           dateRecordCount.set(r.lesson_date, (dateRecordCount.get(r.lesson_date) ?? 0) + 1);
+          const arr = dateRecordMap.get(r.lesson_date) ?? [];
+          arr.push(r);
+          dateRecordMap.set(r.lesson_date, arr);
         });
 
-        // Determine calendar month: show the month with most recent data, or current month
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth();
+        // JST-based calendar month from searchParams or current month
+        const jstNow = currentMonthJST();
+        const todayStr = daysAgoJST(0);
+        const currentMonthStr = formatYearMonth(jstNow.year, jstNow.month);
 
-        // Collect months that have data
-        const monthsWithData = [...new Set(lessonDates.map((d) => d.slice(0, 7)))].sort();
-        // Default to current month, but also prepare prev/next navigation data
-        const allMonths = new Set(monthsWithData);
-        const currentMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-        allMonths.add(currentMonthStr);
-
-        // Show the latest month with data, or current month
-        const displayMonthStr = monthsWithData.length > 0
-          ? monthsWithData[monthsWithData.length - 1] > currentMonthStr
-            ? monthsWithData[monthsWithData.length - 1]
-            : currentMonthStr
+        // Use searchParams.month if provided, otherwise current month
+        const displayMonthStr = monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+          ? monthParam
           : currentMonthStr;
 
-        const [dispYear, dispMonth] = displayMonthStr.split("-").map(Number);
+        const { year: dispYear, month: dispMonth } = parseYearMonth(displayMonthStr);
         const firstDay = new Date(dispYear, dispMonth - 1, 1).getDay();
         const daysInMonth = new Date(dispYear, dispMonth, 0).getDate();
         const datesThisMonth = new Set(
@@ -275,62 +279,100 @@ export default async function StudentDetailPage({ params }: Props) {
         );
 
         // Navigation months
-        const prevMonthDate = new Date(dispYear, dispMonth - 2, 1);
-        const nextMonthDate = new Date(dispYear, dispMonth, 1);
-        const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
-        const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
-        const hasPrevData = monthsWithData.some((m) => m <= prevMonthStr);
-        const hasNextData = nextMonthStr <= currentMonthStr;
+        const prevMonth = dispMonth === 1
+          ? formatYearMonth(dispYear - 1, 12)
+          : formatYearMonth(dispYear, dispMonth - 1);
+        const nextMonth = dispMonth === 12
+          ? formatYearMonth(dispYear + 1, 1)
+          : formatYearMonth(dispYear, dispMonth + 1);
+        const canGoNext = nextMonth <= currentMonthStr;
 
-        // Learning pace: units completed per week (last 4 weeks)
-        const fourWeeksAgo = new Date(now);
-        fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-        const fourWeeksAgoStr = fourWeeksAgo.toISOString().slice(0, 10);
-        const recentLearning = allRecords.filter(
-          (r) => r.lesson_date >= fourWeeksAgoStr && r.step_type === "learning"
-        );
-        const totalLearning = allRecords.filter((r) => r.step_type === "learning").length;
-        const weeklyPace =
-          recentLearning.length > 0
-            ? Math.round((recentLearning.length / 4) * 10) / 10
-            : 0;
+        // Selected day from searchParams
+        const selectedDay = dayParam && datesThisMonth.has(dayParam) ? dayParam : null;
+        const selectedDayRecords = selectedDay ? (dateRecordMap.get(selectedDay) ?? []) : [];
+
+        // Unit lookup for selected day records
+        const unitMap = new Map((allUnits ?? []).map((u) => [u.id, u]));
+        const cgMap = new Map((allContentGroups ?? []).map((cg) => [cg.id, cg]));
+
+        // Learning pace: completion_type based, per content group
+        const fourWeeksAgoStr = daysAgoJST(28);
         const totalLessons = lessonDates.length;
+
+        // Per content-group pace
+        const cgPaceList = (allContentGroups ?? []).map((cg) => {
+          const cgUnits = (allUnits ?? []).filter((u) => u.content_group_id === cg.id);
+          const cgUnitIds = new Set(cgUnits.map((u) => u.id));
+          const cgRecords = allRecords.filter((r) => cgUnitIds.has(r.unit_id));
+
+          // Completed = has completion_type that is not null
+          const completedUnitIds = new Set(
+            cgRecords.filter((r) => r.completion_type != null).map((r) => r.unit_id)
+          );
+          const completedCount = completedUnitIds.size;
+          const totalCount = cgUnits.length;
+          const remaining = totalCount - completedCount;
+
+          // Recent completions (last 4 weeks)
+          const recentCompleted = new Set(
+            cgRecords
+              .filter((r) => r.lesson_date >= fourWeeksAgoStr && r.completion_type != null)
+              .map((r) => r.unit_id)
+          ).size;
+          const weeklyPace = recentCompleted > 0
+            ? Math.round((recentCompleted / 4) * 10) / 10
+            : 0;
+
+          // Predicted completion
+          const predictedWeeks = weeklyPace > 0 ? Math.ceil(remaining / weeklyPace) : null;
+
+          return {
+            name: cg.name,
+            completedCount,
+            totalCount,
+            remaining,
+            weeklyPace,
+            predictedWeeks,
+          };
+        }).filter((p) => p.totalCount > 0);
 
         const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
 
-        // Intensity: light/medium/strong based on record count
         function intensityClass(count: number): string {
           if (count >= 6) return "bg-primary text-white font-semibold";
           if (count >= 3) return "bg-primary/20 text-primary font-semibold";
           return "bg-primary/10 text-primary font-medium";
         }
 
+        const stepLabel = (t: string) => {
+          if (t === "learning") return "L";
+          if (t === "step1") return "S1";
+          if (t === "step2") return "S2";
+          return t;
+        };
+
         return (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             {/* Calendar */}
             <Card>
               <CardHeader className="py-3 px-4">
                 <div className="flex items-center justify-between">
-                  {hasPrevData ? (
-                    <a
-                      href={`?month=${prevMonthStr}`}
-                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <ChevronRight className="h-4 w-4 rotate-180" />
-                    </a>
-                  ) : (
-                    <div className="w-6" />
-                  )}
+                  <Link
+                    href={`?month=${prevMonth}`}
+                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4 rotate-180" />
+                  </Link>
                   <CardTitle className="text-sm font-semibold">
                     {dispYear}年{dispMonth}月
                   </CardTitle>
-                  {hasNextData ? (
-                    <a
-                      href={`?month=${nextMonthStr}`}
+                  {canGoNext ? (
+                    <Link
+                      href={`?month=${nextMonth}`}
                       className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <ChevronRight className="h-4 w-4" />
-                    </a>
+                    </Link>
                   ) : (
                     <div className="w-6" />
                   )}
@@ -338,57 +380,57 @@ export default async function StudentDetailPage({ params }: Props) {
               </CardHeader>
               <CardContent className="px-3 pb-4">
                 <div className="grid grid-cols-7 gap-0.5 text-center">
-                  {/* Day header */}
                   {dayLabels.map((d, i) => (
                     <div
                       key={d}
                       className={`text-[10px] font-semibold py-1.5 ${
-                        i === 0
-                          ? "text-red-400"
-                          : i === 6
-                          ? "text-blue-400"
-                          : "text-muted-foreground"
+                        i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-muted-foreground"
                       }`}
                     >
                       {d}
                     </div>
                   ))}
-                  {/* Empty cells before first day */}
                   {Array.from({ length: firstDay }, (_, i) => (
                     <div key={`empty-${i}`} className="aspect-square" />
                   ))}
-                  {/* Day cells */}
                   {Array.from({ length: daysInMonth }, (_, i) => {
                     const day = i + 1;
                     const dateStr = `${displayMonthStr}-${String(day).padStart(2, "0")}`;
                     const hasLesson = datesThisMonth.has(dateStr);
                     const recordCount = dateRecordCount.get(dateStr) ?? 0;
                     const dayOfWeek = new Date(dispYear, dispMonth - 1, day).getDay();
-                    const isToday =
-                      day === now.getDate() &&
-                      dispMonth - 1 === now.getMonth() &&
-                      dispYear === now.getFullYear();
+                    const isToday = dateStr === todayStr;
+                    const isSelected = dateStr === selectedDay;
+
+                    const cell = (
+                      <div
+                        className={`w-8 h-8 flex items-center justify-center rounded-full text-xs transition-colors ${
+                          isSelected
+                            ? "bg-primary text-white font-bold ring-2 ring-primary ring-offset-2"
+                            : hasLesson
+                            ? intensityClass(recordCount)
+                            : isToday
+                            ? "ring-2 ring-primary ring-offset-1 font-bold text-primary"
+                            : dayOfWeek === 0
+                            ? "text-red-400/70"
+                            : dayOfWeek === 6
+                            ? "text-blue-400/70"
+                            : "text-foreground/80"
+                        }`}
+                      >
+                        {day}
+                      </div>
+                    );
 
                     return (
-                      <div
-                        key={day}
-                        className="aspect-square flex items-center justify-center"
-                      >
-                        <div
-                          className={`w-8 h-8 flex items-center justify-center rounded-full text-xs transition-colors ${
-                            hasLesson
-                              ? intensityClass(recordCount)
-                              : isToday
-                              ? "ring-2 ring-primary ring-offset-1 font-bold text-primary"
-                              : dayOfWeek === 0
-                              ? "text-red-400/70"
-                              : dayOfWeek === 6
-                              ? "text-blue-400/70"
-                              : "text-foreground/80"
-                          }`}
-                        >
-                          {day}
-                        </div>
+                      <div key={day} className="aspect-square flex items-center justify-center">
+                        {hasLesson ? (
+                          <Link href={`?month=${displayMonthStr}&day=${dateStr}`}>
+                            {cell}
+                          </Link>
+                        ) : (
+                          cell
+                        )}
                       </div>
                     );
                   })}
@@ -415,43 +457,90 @@ export default async function StudentDetailPage({ params }: Props) {
               </CardContent>
             </Card>
 
-            {/* Learning Pace */}
+            {/* Selected day records */}
+            {selectedDay && (
+              <Card>
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm font-semibold">
+                    {selectedDay} の授業記録（{selectedDayRecords.length}件）
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {selectedDayRecords.length === 0 ? (
+                    <p className="px-4 py-6 text-sm text-muted-foreground text-center">記録なし</p>
+                  ) : (
+                    selectedDayRecords.map((r, i) => {
+                      const unit = unitMap.get(r.unit_id);
+                      const cg = unit ? cgMap.get(unit.content_group_id) : null;
+                      return (
+                        <div key={r.id}>
+                          {i > 0 && <Separator />}
+                          <div className="px-4 py-2.5 flex items-center gap-3">
+                            <Badge variant="secondary" className="text-[9px] h-4 px-1.5 font-semibold shrink-0">
+                              {stepLabel(r.step_type)}
+                            </Badge>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {unit?.name ?? "—"}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {cg?.name ?? "—"} · {r.users?.display_name ?? ""}
+                              </p>
+                            </div>
+                            <span className="text-sm font-semibold tabular-nums shrink-0">
+                              {r.score != null ? `${r.score}/${r.max_score}` : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Learning Pace - per content group */}
             <Card>
               <CardHeader className="py-3 px-4">
                 <CardTitle className="text-sm font-semibold">学習ペース</CardTitle>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  授業実施 {totalLessons}日 · 直近4週の完了ペース
+                </p>
               </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold tabular-nums tracking-tight">
-                    {weeklyPace > 0 ? weeklyPace : "—"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    単元/週
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground -mt-2">直近4週間の平均</p>
-                <Separator />
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">授業実施日数</span>
-                    <span className="text-sm font-semibold tabular-nums">{totalLessons}日</span>
+              <CardContent className="px-4 pb-4">
+                {cgPaceList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">データなし</p>
+                ) : (
+                  <div className="space-y-4">
+                    {cgPaceList.map((p) => {
+                      const pct = p.totalCount > 0 ? Math.round((p.completedCount / p.totalCount) * 100) : 0;
+                      return (
+                        <div key={p.name} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium truncate">{p.name}</span>
+                            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                              {p.completedCount}/{p.totalCount}
+                            </span>
+                          </div>
+                          <Progress value={pct} className="h-1.5" />
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                            <span className="tabular-nums">
+                              {p.weeklyPace > 0 ? `${p.weeklyPace}単元/週` : "— / 未定"}
+                            </span>
+                            {p.predictedWeeks != null && (
+                              <>
+                                <span>·</span>
+                                <span className="tabular-nums">
+                                  残{p.remaining}単元 ≈ {p.predictedWeeks}週
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">学習済み単元</span>
-                    <span className="text-sm font-semibold tabular-nums">{totalLearning}単元</span>
-                  </div>
-                  {weeklyPace > 0 && (
-                    <>
-                      <Separator />
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">月あたり推定</span>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {Math.round(weeklyPace * 4.3)}単元/月
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
