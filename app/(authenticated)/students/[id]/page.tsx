@@ -242,16 +242,45 @@ export default async function StudentDetailPage({ params }: Props) {
         const allRecords = records ?? [];
         const lessonDates = [...new Set(allRecords.map((r) => r.lesson_date))].sort();
 
-        // Calendar: current month
+        // Build a map of date → record count for intensity
+        const dateRecordCount = new Map<string, number>();
+        allRecords.forEach((r) => {
+          dateRecordCount.set(r.lesson_date, (dateRecordCount.get(r.lesson_date) ?? 0) + 1);
+        });
+
+        // Determine calendar month: show the month with most recent data, or current month
         const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth();
-        const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        // Collect months that have data
+        const monthsWithData = [...new Set(lessonDates.map((d) => d.slice(0, 7)))].sort();
+        // Default to current month, but also prepare prev/next navigation data
+        const allMonths = new Set(monthsWithData);
+        const currentMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+        allMonths.add(currentMonthStr);
+
+        // Show the latest month with data, or current month
+        const displayMonthStr = monthsWithData.length > 0
+          ? monthsWithData[monthsWithData.length - 1] > currentMonthStr
+            ? monthsWithData[monthsWithData.length - 1]
+            : currentMonthStr
+          : currentMonthStr;
+
+        const [dispYear, dispMonth] = displayMonthStr.split("-").map(Number);
+        const firstDay = new Date(dispYear, dispMonth - 1, 1).getDay();
+        const daysInMonth = new Date(dispYear, dispMonth, 0).getDate();
         const datesThisMonth = new Set(
-          lessonDates.filter((d) => d.startsWith(monthStr))
+          lessonDates.filter((d) => d.startsWith(displayMonthStr))
         );
+
+        // Navigation months
+        const prevMonthDate = new Date(dispYear, dispMonth - 2, 1);
+        const nextMonthDate = new Date(dispYear, dispMonth, 1);
+        const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
+        const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
+        const hasPrevData = monthsWithData.some((m) => m <= prevMonthStr);
+        const hasNextData = nextMonthStr <= currentMonthStr;
 
         // Learning pace: units completed per week (last 4 weeks)
         const fourWeeksAgo = new Date(now);
@@ -260,6 +289,7 @@ export default async function StudentDetailPage({ params }: Props) {
         const recentLearning = allRecords.filter(
           (r) => r.lesson_date >= fourWeeksAgoStr && r.step_type === "learning"
         );
+        const totalLearning = allRecords.filter((r) => r.step_type === "learning").length;
         const weeklyPace =
           recentLearning.length > 0
             ? Math.round((recentLearning.length / 4) * 10) / 10
@@ -268,50 +298,119 @@ export default async function StudentDetailPage({ params }: Props) {
 
         const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
 
+        // Intensity: light/medium/strong based on record count
+        function intensityClass(count: number): string {
+          if (count >= 6) return "bg-primary text-white font-semibold";
+          if (count >= 3) return "bg-primary/20 text-primary font-semibold";
+          return "bg-primary/10 text-primary font-medium";
+        }
+
         return (
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Mini Calendar */}
+            {/* Calendar */}
             <Card>
               <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm font-semibold">
-                  {year}年{month + 1}月
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  {hasPrevData ? (
+                    <a
+                      href={`?month=${prevMonthStr}`}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4 rotate-180" />
+                    </a>
+                  ) : (
+                    <div className="w-6" />
+                  )}
+                  <CardTitle className="text-sm font-semibold">
+                    {dispYear}年{dispMonth}月
+                  </CardTitle>
+                  {hasNextData ? (
+                    <a
+                      href={`?month=${nextMonthStr}`}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <div className="w-6" />
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="grid grid-cols-7 gap-1 text-center">
-                  {dayLabels.map((d) => (
-                    <div key={d} className="text-[10px] font-medium text-muted-foreground py-1">
+              <CardContent className="px-3 pb-4">
+                <div className="grid grid-cols-7 gap-0.5 text-center">
+                  {/* Day header */}
+                  {dayLabels.map((d, i) => (
+                    <div
+                      key={d}
+                      className={`text-[10px] font-semibold py-1.5 ${
+                        i === 0
+                          ? "text-red-400"
+                          : i === 6
+                          ? "text-blue-400"
+                          : "text-muted-foreground"
+                      }`}
+                    >
                       {d}
                     </div>
                   ))}
+                  {/* Empty cells before first day */}
                   {Array.from({ length: firstDay }, (_, i) => (
-                    <div key={`empty-${i}`} />
+                    <div key={`empty-${i}`} className="aspect-square" />
                   ))}
+                  {/* Day cells */}
                   {Array.from({ length: daysInMonth }, (_, i) => {
                     const day = i + 1;
-                    const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;
+                    const dateStr = `${displayMonthStr}-${String(day).padStart(2, "0")}`;
                     const hasLesson = datesThisMonth.has(dateStr);
+                    const recordCount = dateRecordCount.get(dateStr) ?? 0;
+                    const dayOfWeek = new Date(dispYear, dispMonth - 1, day).getDay();
                     const isToday =
                       day === now.getDate() &&
-                      month === now.getMonth() &&
-                      year === now.getFullYear();
+                      dispMonth - 1 === now.getMonth() &&
+                      dispYear === now.getFullYear();
 
                     return (
                       <div
                         key={day}
-                        className={`relative text-xs py-1.5 rounded-md ${
-                          isToday
-                            ? "font-bold text-primary"
-                            : "text-foreground"
-                        }`}
+                        className="aspect-square flex items-center justify-center"
                       >
-                        {day}
-                        {hasLesson && (
-                          <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-                        )}
+                        <div
+                          className={`w-8 h-8 flex items-center justify-center rounded-full text-xs transition-colors ${
+                            hasLesson
+                              ? intensityClass(recordCount)
+                              : isToday
+                              ? "ring-2 ring-primary ring-offset-1 font-bold text-primary"
+                              : dayOfWeek === 0
+                              ? "text-red-400/70"
+                              : dayOfWeek === 6
+                              ? "text-blue-400/70"
+                              : "text-foreground/80"
+                          }`}
+                        >
+                          {day}
+                        </div>
                       </div>
                     );
                   })}
+                </div>
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary/10" />
+                    <span className="text-[10px] text-muted-foreground">少</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary/30" />
+                    <span className="text-[10px] text-muted-foreground">中</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+                    <span className="text-[10px] text-muted-foreground">多</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full ring-2 ring-primary ring-offset-1" />
+                    <span className="text-[10px] text-muted-foreground">今日</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -323,21 +422,35 @@ export default async function StudentDetailPage({ params }: Props) {
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-4">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tabular-nums">
+                  <span className="text-3xl font-bold tabular-nums tracking-tight">
                     {weeklyPace > 0 ? weeklyPace : "—"}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    単元/週（直近4週）
+                    単元/週
                   </span>
                 </div>
+                <p className="text-[11px] text-muted-foreground -mt-2">直近4週間の平均</p>
                 <Separator />
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">授業実施日数</span>
-                  <span className="font-medium tabular-nums">{totalLessons}日</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">学習済み単元</span>
-                  <span className="font-medium tabular-nums">{recentLearning.length > 0 ? allRecords.filter((r) => r.step_type === "learning").length : 0}単元</span>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">授業実施日数</span>
+                    <span className="text-sm font-semibold tabular-nums">{totalLessons}日</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">学習済み単元</span>
+                    <span className="text-sm font-semibold tabular-nums">{totalLearning}単元</span>
+                  </div>
+                  {weeklyPace > 0 && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">月あたり推定</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {Math.round(weeklyPace * 4.3)}単元/月
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
