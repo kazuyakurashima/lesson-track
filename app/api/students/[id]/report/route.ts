@@ -581,7 +581,7 @@ export async function GET(
     </div>
     <div class="meta-right">
       期間: ${escapeHtml(dateRange)}<br>
-      記録数: ${allRecords.length}件
+      記録数: ${[...recordsBySubject.values()].reduce((sum, recs) => sum + recs.length, 0)}件
     </div>
   </div>
 
