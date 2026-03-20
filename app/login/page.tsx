@@ -4,6 +4,9 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { BookOpen, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -21,10 +24,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setError("メールアドレスまたはパスワードが正しくありません");
@@ -57,145 +57,125 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-primary/5 via-surface to-secondary/5 px-4">
+    <div className="min-h-dvh flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/3" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-primary/3 rounded-full blur-3xl" />
+      </div>
+
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-white mb-4">
-            <BookOpen size={32} />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg shadow-primary/25">
+            <BookOpen className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-text">
-            Lesson Track
-          </h1>
-          <p className="text-text-muted text-sm mt-1">個別指導 学習管理</p>
+          <h1 className="text-2xl font-bold tracking-tight">Lesson Track</h1>
+          <p className="text-muted-foreground text-sm mt-1">個別指導 学習管理</p>
         </div>
 
         {/* Card */}
-        <div className="bg-card rounded-xl shadow-sm border border-border p-6">
-          {resetSent ? (
-            <div className="text-center py-4">
-              <p className="text-success font-medium mb-2">
-                リセットメールを送信しました
-              </p>
-              <p className="text-text-muted text-sm">
-                メールに記載のリンクからパスワードを再設定してください
-              </p>
-              <button
-                onClick={() => {
-                  setResetMode(false);
-                  setResetSent(false);
-                }}
-                className="mt-4 text-primary text-sm font-medium hover:underline"
-              >
-                ログインに戻る
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={resetMode ? handleResetPassword : handleLogin}>
-              <h2 className="text-lg font-semibold mb-6">
-                {resetMode ? "パスワードリセット" : "ログイン"}
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-text mb-1.5"
-                  >
+        <Card className="shadow-xl shadow-black/5 border-border/50">
+          <CardHeader className="pb-0">
+            <h2 className="text-lg font-semibold tracking-tight">
+              {resetMode ? "パスワードリセット" : "ログイン"}
+            </h2>
+          </CardHeader>
+          <CardContent>
+            {resetSent ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="font-medium mb-1">リセットメールを送信しました</p>
+                <p className="text-muted-foreground text-sm">
+                  メールに記載のリンクからパスワードを再設定してください
+                </p>
+                <Button
+                  variant="ghost"
+                  className="mt-4"
+                  onClick={() => { setResetMode(false); setResetSent(false); }}
+                >
+                  ログインに戻る
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={resetMode ? handleResetPassword : handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium">
                     メールアドレス
                   </label>
-                  <input
+                  <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     autoComplete="email"
-                    className="w-full px-3 py-2.5 rounded-lg border border-border bg-white text-text
-                             placeholder:text-text-muted/50 focus:outline-none focus:ring-2
-                             focus:ring-primary/20 focus:border-primary transition-colors"
                     placeholder="example@email.com"
                   />
                 </div>
 
                 {!resetMode && (
-                  <div>
-                    <label
-                      htmlFor="password"
-                      className="block text-sm font-medium text-text mb-1.5"
-                    >
+                  <div className="space-y-2">
+                    <label htmlFor="password" className="text-sm font-medium">
                       パスワード
                     </label>
                     <div className="relative">
-                      <input
+                      <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         autoComplete="current-password"
-                        className="w-full px-3 py-2.5 rounded-lg border border-border bg-white text-text
-                                 placeholder:text-text-muted/50 focus:outline-none focus:ring-2
-                                 focus:ring-primary/20 focus:border-primary transition-colors pr-10"
                         placeholder="パスワードを入力"
+                        className="pr-10"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted
-                                 hover:text-text transition-colors"
-                        aria-label={
-                          showPassword
-                            ? "パスワードを隠す"
-                            : "パスワードを表示"
-                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"}
                       >
-                        {showPassword ? (
-                          <EyeOff size={18} />
-                        ) : (
-                          <Eye size={18} />
-                        )}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
                 )}
 
                 {error && (
-                  <p className="text-danger text-sm bg-danger-light rounded-lg px-3 py-2">
+                  <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2.5 font-medium">
                     {error}
-                  </p>
+                  </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-primary text-white font-medium
-                           hover:bg-primary-dark active:scale-[0.98] transition-all
-                           disabled:opacity-50 disabled:cursor-not-allowed
-                           flex items-center justify-center gap-2"
-                >
-                  {loading && <Loader2 size={18} className="animate-spin" />}
+                <Button type="submit" disabled={loading} className="w-full" size="lg">
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {resetMode ? "リセットメールを送信" : "ログイン"}
-                </button>
-              </div>
+                </Button>
 
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResetMode(!resetMode);
-                    setError("");
-                  }}
-                  className="text-primary text-sm font-medium hover:underline"
-                >
-                  {resetMode
-                    ? "ログインに戻る"
-                    : "パスワードを忘れた方"}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm"
+                    onClick={() => { setResetMode(!resetMode); setError(""); }}
+                  >
+                    {resetMode ? "ログインに戻る" : "パスワードを忘れた方"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Lesson Track v0.1.0
+        </p>
       </div>
     </div>
   );

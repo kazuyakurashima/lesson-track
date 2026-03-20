@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Plus, ChevronRight } from "lucide-react";
+import { Plus, BookOpen } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { StudentListClient } from "./student-list-client";
 
 export default async function StudentsPage() {
   const supabase = await createClient();
@@ -32,101 +34,92 @@ export default async function StudentsPage() {
     }> | null;
   };
 
-  const enrollmentLabel = (type: string) => {
-    switch (type) {
-      case "spring_course":
-        return "春期講習";
-      case "ongoing":
-        return "継続受講";
-      case "trial":
-        return "体験";
-      default:
-        return type;
-    }
+  // Get recent records for drawer preview
+  const { data: recentRecords } = (await supabase
+    .from("lesson_records")
+    .select(
+      `id, student_id, lesson_date, step_type, score, max_score, completion_type,
+       units!inner(name, content_group_id),
+       users!inner(display_name)`
+    )
+    .order("lesson_date", { ascending: false })
+    .limit(50)) as {
+    data: Array<{
+      id: string;
+      student_id: string;
+      lesson_date: string;
+      step_type: string;
+      score: number | null;
+      max_score: number | null;
+      completion_type: string | null;
+      units: { name: string; content_group_id: string };
+      users: { display_name: string };
+    }> | null;
   };
+
+  const { data: contentGroups } = (await supabase
+    .from("content_groups")
+    .select("id, name")) as { data: Array<{ id: string; name: string }> | null };
+
+  const cgNameMap: Record<string, string> = {};
+  if (contentGroups) {
+    for (const cg of contentGroups) {
+      cgNameMap[cg.id] = cg.name;
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">生徒一覧</h1>
+        <h1 className="text-base font-bold tracking-tight">生徒一覧</h1>
         {isAdmin && (
           <Link
             href="/students/new"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg
-                     bg-primary text-white text-sm font-medium
-                     hover:bg-primary-dark active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                     bg-primary text-primary-foreground text-sm font-medium
+                     hover:bg-primary/90 active:translate-y-px transition-all"
           >
-            <Plus size={16} />
+            <Plus className="h-4 w-4" />
             追加
           </Link>
         )}
       </div>
 
       {!students || students.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-8 text-center">
-          <p className="text-text-muted mb-3">生徒が登録されていません</p>
-          {isAdmin && (
-            <Link
-              href="/students/new"
-              className="text-primary font-medium text-sm hover:underline"
-            >
-              最初の生徒を登録する
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {students.map((student) => {
-            const subjects = student.student_subjects?.map(
-              (ss) => ss.subjects?.name
-            );
-
-            return (
-              <Link
-                key={student.id}
-                href={`/students/${student.id}`}
-                className={`block bg-card rounded-xl border border-border p-4
-                         hover:border-primary/30 hover:shadow-sm transition-all
-                         ${!student.is_active ? "opacity-50" : ""}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{student.name}</span>
-                      {!student.is_active && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-border text-text-muted">
-                          退塾
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-text-muted bg-surface px-2 py-0.5 rounded-full">
-                        {student.grade}
-                      </span>
-                      <span className="text-xs text-text-muted bg-surface px-2 py-0.5 rounded-full">
-                        {enrollmentLabel(student.enrollment_type)}
-                      </span>
-                      {subjects?.map((name) => (
-                        <span
-                          key={name}
-                          className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full"
-                        >
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                    {student.schedule_note && (
-                      <p className="text-xs text-text-muted mt-1">
-                        {student.schedule_note}
-                      </p>
-                    )}
-                  </div>
-                  <ChevronRight size={18} className="text-text-muted flex-shrink-0" />
-                </div>
+        <Card>
+          <CardContent className="py-10 text-center">
+            <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-2">生徒が登録されていません</p>
+            {isAdmin && (
+              <Link href="/students/new" className="text-sm text-primary font-medium hover:underline">
+                最初の生徒を登録する
               </Link>
-            );
-          })}
-        </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <StudentListClient
+          students={(students ?? []).map((s) => ({
+            id: s.id,
+            name: s.name,
+            grade: s.grade,
+            enrollmentType: s.enrollment_type,
+            scheduleNote: s.schedule_note,
+            isActive: s.is_active,
+            subjects: s.student_subjects?.map((ss) => ss.subjects?.name).filter(Boolean) ?? [],
+          }))}
+          recentRecords={(recentRecords ?? []).map((r) => ({
+            id: r.id,
+            studentId: r.student_id,
+            lessonDate: r.lesson_date,
+            stepType: r.step_type,
+            score: r.score,
+            maxScore: r.max_score,
+            unitName: r.units?.name ?? "",
+            contentGroupName: cgNameMap[r.units?.content_group_id ?? ""] ?? "",
+            instructor: r.users?.display_name ?? "",
+          }))}
+        />
       )}
     </div>
   );

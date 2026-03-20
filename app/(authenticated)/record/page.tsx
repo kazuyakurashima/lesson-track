@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Image from "next/image";
 import { ArrowLeft, Camera, Check, Loader2, AlertTriangle, Zap } from "lucide-react";
 import type { StepType, ContentCategory } from "@/lib/types/supabase";
 
@@ -37,13 +38,14 @@ interface Recommendation {
   reason: string;
   contentGroupName: string;
   contentGroupId: string;
+  subjectId: string;
 }
 
 const STEPS = ["生徒", "単元", "撮影", "確認"] as const;
 
 export default function RecordPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -65,7 +67,7 @@ export default function RecordPage() {
   // Step 3: Photo
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [skipPhoto, setSkipPhoto] = useState(false);
+  const [, setSkipPhoto] = useState(false);
 
   // Step 4: Confirm
   const [score, setScore] = useState<string>("");
@@ -89,7 +91,7 @@ export default function RecordPage() {
       .then(({ data }) => {
         if (data) setStudents(data as Student[]);
       });
-  }, []);
+  }, [supabase]);
 
   // Load subjects when student selected
   useEffect(() => {
@@ -107,7 +109,7 @@ export default function RecordPage() {
           if (subs.length > 0) setSelectedSubjectId(subs[0].id);
         }
       });
-  }, [selectedStudent]);
+  }, [selectedStudent, supabase]);
 
   // Load content groups when subject selected
   useEffect(() => {
@@ -125,7 +127,7 @@ export default function RecordPage() {
           else setSelectedContentGroupId("");
         }
       });
-  }, [selectedSubjectId]);
+  }, [selectedSubjectId, supabase]);
 
   // Load units when content group selected
   useEffect(() => {
@@ -139,7 +141,7 @@ export default function RecordPage() {
       .then(({ data }) => {
         if (data) setUnits(data as Unit[]);
       });
-  }, [selectedContentGroupId]);
+  }, [selectedContentGroupId, supabase]);
 
   // Calculate recommendations
   const loadRecommendations = useCallback(async () => {
@@ -202,6 +204,7 @@ export default function RecordPage() {
               reason: `前回 ${latest.score}/${latest.max_score} → 再テスト`,
               contentGroupName: cg.name,
               contentGroupId: cg.id,
+              subjectId: cg.subject_id,
             });
             break;
           }
@@ -215,6 +218,7 @@ export default function RecordPage() {
             reason: "ラーニング済み → ステップ2テスト",
             contentGroupName: cg.name,
             contentGroupId: cg.id,
+            subjectId: cg.subject_id,
           });
           break;
         }
@@ -227,6 +231,7 @@ export default function RecordPage() {
             reason: "ステップ1済み → ステップ2",
             contentGroupName: cg.name,
             contentGroupId: cg.id,
+            subjectId: cg.subject_id,
           });
           break;
         }
@@ -239,6 +244,7 @@ export default function RecordPage() {
             reason: "次の単元",
             contentGroupName: cg.name,
             contentGroupId: cg.id,
+            subjectId: cg.subject_id,
           });
           break;
         }
@@ -246,7 +252,7 @@ export default function RecordPage() {
     }
 
     setRecommendations(recs);
-  }, [selectedStudent, subjects]);
+  }, [selectedStudent, subjects, supabase]);
 
   useEffect(() => {
     loadRecommendations();
@@ -374,10 +380,9 @@ export default function RecordPage() {
   }
 
   function handleRecommendationSelect(rec: Recommendation) {
-    // Find the subject that owns this content group
-    const cg = contentGroups.find((c) => c.id === rec.contentGroupId)
-      ?? { subject_id: "" };
-    if (cg.subject_id) setSelectedSubjectId(cg.subject_id);
+    // Use subjectId from the recommendation directly (avoids lookup failure
+    // when the recommendation is for a different subject than currently selected)
+    setSelectedSubjectId(rec.subjectId);
     setSelectedContentGroupId(rec.contentGroupId);
     setSelectedUnit(rec.unit);
     setSelectedStepType(rec.stepType);
@@ -627,10 +632,13 @@ export default function RecordPage() {
             </label>
           ) : (
             <div className="bg-card rounded-xl border border-border p-3">
-              <img
+              <Image
                 src={imagePreview}
                 alt="答案プレビュー"
+                width={400}
+                height={300}
                 className="w-full rounded-lg object-contain max-h-64"
+                unoptimized
               />
               <label className="block mt-2 text-center">
                 <span className="text-sm text-primary font-medium cursor-pointer hover:underline">
@@ -667,10 +675,13 @@ export default function RecordPage() {
           {/* Image thumbnail */}
           {imagePreview && (
             <div className="bg-card rounded-xl border border-border p-3">
-              <img
+              <Image
                 src={imagePreview}
                 alt="答案"
+                width={400}
+                height={200}
                 className="w-full rounded-lg object-contain max-h-40"
+                unoptimized
               />
             </div>
           )}

@@ -1,5 +1,7 @@
 -- Seed: 鈴木凛乃の生徒登録と過去授業記録
 -- Run AFTER schema.sql and seed_units.sql
+-- Idempotent: skips if student '鈴木凛乃' already exists
+-- Expected records: 63 (19 on 2/27 + 19 on 3/3 + 25 on 3/10)
 
 DO $$
 DECLARE
@@ -14,6 +16,13 @@ DECLARE
   v_cg_math1 UUID;      -- 1年のまとめ
   v_unit_id UUID;
 BEGIN
+  -- Skip if already seeded
+  SELECT id INTO v_student_id FROM students WHERE name = '鈴木凛乃' LIMIT 1;
+  IF v_student_id IS NOT NULL THEN
+    RAISE NOTICE 'Student 鈴木凛乃 already exists (id=%), skipping seed.', v_student_id;
+    RETURN;
+  END IF;
+
   -- Get admin user
   SELECT id INTO v_admin_id FROM users WHERE role = 'admin' LIMIT 1;
 

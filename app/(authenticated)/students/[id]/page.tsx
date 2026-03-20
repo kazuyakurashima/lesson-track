@@ -1,8 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, AlertTriangle, Circle, Disc, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  Circle,
+  Disc,
+  ChevronRight,
+} from "lucide-react";
 import type { ContentCategory } from "@/lib/types/supabase";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -54,7 +65,6 @@ export default async function StudentDetailPage({ params }: Props) {
 
   if (!student) notFound();
 
-  // Get student's subjects
   const { data: studentSubjects } = (await supabase
     .from("student_subjects")
     .select("subject_id, subjects(id, name, display_order)")
@@ -69,7 +79,6 @@ export default async function StudentDetailPage({ params }: Props) {
     .map((ss) => ss.subjects)
     .sort((a, b) => a.display_order - b.display_order);
 
-  // Get all content groups for the student's subjects
   const subjectIds = subjects.map((s) => s.id);
   const { data: allContentGroups } = (await supabase
     .from("content_groups")
@@ -85,7 +94,6 @@ export default async function StudentDetailPage({ params }: Props) {
     }> | null;
   };
 
-  // Get all units for the content groups
   const contentGroupIds = (allContentGroups ?? []).map((cg) => cg.id);
   const { data: allUnits } = (await supabase
     .from("units")
@@ -95,7 +103,6 @@ export default async function StudentDetailPage({ params }: Props) {
     data: Array<{ id: string; name: string; unit_number: number; content_group_id: string }> | null;
   };
 
-  // Get all records for this student
   const { data: records } = (await supabase
     .from("lesson_records")
     .select(
@@ -116,7 +123,6 @@ export default async function StudentDetailPage({ params }: Props) {
     }> | null;
   };
 
-  // Build progress per content group within a subject
   function buildContentGroupProgress(subjectId: string): ContentGroupProgress[] {
     const subjectCGs = (allContentGroups ?? []).filter((cg) => cg.subject_id === subjectId);
     const studentRecords = records ?? [];
@@ -145,11 +151,7 @@ export default async function StudentDetailPage({ params }: Props) {
             status = "completed";
           } else {
             const hasStep2 = unitRecords.some((r) => r.stepType === "step2");
-            if (hasStep2) {
-              status = "retest";
-            } else {
-              status = "in_progress";
-            }
+            status = hasStep2 ? "retest" : "in_progress";
           }
         }
 
@@ -196,13 +198,13 @@ export default async function StudentDetailPage({ params }: Props) {
   const StatusIcon = ({ status }: { status: UnitStatus }) => {
     switch (status) {
       case "completed":
-        return <CheckCircle2 size={18} className="text-success" />;
+        return <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500" />;
       case "retest":
-        return <AlertTriangle size={18} className="text-warning" />;
+        return <AlertTriangle className="h-4.5 w-4.5 text-amber-500" />;
       case "in_progress":
-        return <Disc size={18} className="text-primary" />;
+        return <Disc className="h-4.5 w-4.5 text-primary" />;
       case "not_started":
-        return <Circle size={18} className="text-border" />;
+        return <Circle className="h-4.5 w-4.5 text-muted-foreground/30" />;
     }
   };
 
@@ -212,23 +214,17 @@ export default async function StudentDetailPage({ params }: Props) {
       <div className="flex items-center gap-3">
         <Link
           href="/students"
-          className="p-2 -ml-2 text-text-muted hover:text-text rounded-lg hover:bg-surface transition-colors"
+          className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div>
-          <h1 className="text-xl font-bold">{student.name}</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-text-muted bg-surface px-2 py-0.5 rounded-full">
-              {student.grade}
-            </span>
-            <span className="text-xs text-text-muted bg-surface px-2 py-0.5 rounded-full">
-              {enrollmentLabel(student.enrollment_type)}
-            </span>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold tracking-tight">{student.name}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <Badge variant="secondary">{student.grade}</Badge>
+            <Badge variant="outline">{enrollmentLabel(student.enrollment_type)}</Badge>
             {student.schedule_note && (
-              <span className="text-xs text-text-muted">
-                {student.schedule_note}
-              </span>
+              <span className="text-xs text-muted-foreground">{student.schedule_note}</span>
             )}
           </div>
         </div>
@@ -236,17 +232,19 @@ export default async function StudentDetailPage({ params }: Props) {
 
       {/* Subject sections with content groups */}
       {subjects.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-8 text-center">
-          <p className="text-text-muted">受講科目が設定されていません</p>
-        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">受講科目が設定されていません</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-6">
           {subjects.map((subject) => {
             const cgProgressList = buildContentGroupProgress(subject.id);
 
             return (
-              <div key={subject.id} className="space-y-3">
-                <h2 className="text-lg font-semibold">{subject.name}</h2>
+              <section key={subject.id} className="space-y-3">
+                <h2 className="text-base font-bold tracking-tight text-foreground">{subject.name}</h2>
 
                 {cgProgressList.map((cgProgress) => {
                   const pct =
@@ -255,82 +253,73 @@ export default async function StudentDetailPage({ params }: Props) {
                       : 0;
 
                   return (
-                    <details
-                      key={cgProgress.contentGroupId}
-                      className="bg-card rounded-xl border border-border overflow-hidden group"
-                    >
-                      {/* Content group header */}
-                      <summary className="px-4 py-3 cursor-pointer list-none">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <ChevronRight
-                              size={16}
-                              className="text-text-muted transition-transform group-open:rotate-90"
-                            />
-                            <h3 className="font-medium text-sm">{cgProgress.contentGroupName}</h3>
-                          </div>
-                          <span className="text-xs text-text-muted tabular-nums">
-                            {cgProgress.completedCount}/{cgProgress.totalCount}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 ml-6">
-                          <div className="flex-1 h-2 bg-surface rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                pct >= 80
-                                  ? "bg-success"
-                                  : pct >= 50
-                                  ? "bg-primary"
-                                  : "bg-warning"
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-text-muted tabular-nums w-10 text-right">
-                            {pct}%
-                          </span>
-                        </div>
-                      </summary>
+                    <Card key={cgProgress.contentGroupId} className="overflow-hidden">
+                      <details className="group">
+                        <summary className="cursor-pointer list-none">
+                          <CardHeader className="py-3 px-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-open:rotate-90" />
+                                <CardTitle className="text-sm font-semibold">
+                                  {cgProgress.contentGroupName}
+                                </CardTitle>
+                              </div>
+                              <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                                {cgProgress.completedCount}/{cgProgress.totalCount}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 ml-6">
+                              <Progress value={pct} className="h-1.5 flex-1" />
+                              <span className="text-xs font-medium tabular-nums text-muted-foreground w-10 text-right">
+                                {pct}%
+                              </span>
+                            </div>
+                          </CardHeader>
+                        </summary>
 
-                      {/* Unit list */}
-                      <div className="divide-y divide-border border-t border-border">
-                        {cgProgress.units.map((unit) => (
-                          <div key={unit.unitId} className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <StatusIcon status={unit.status} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {unit.unitName}
-                                </p>
-                                {unit.records.length > 0 && (
-                                  <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                    {unit.records.map((r, i) => (
-                                      <span
-                                        key={i}
-                                        className="text-xs text-text-muted tabular-nums"
-                                      >
-                                        <span className="inline-block bg-surface px-1 rounded mr-1">
-                                          {stepLabel(r.stepType)}
-                                        </span>
-                                        {r.score !== null
-                                          ? `${r.score}/${r.maxScore}`
-                                          : "配布"}
-                                        <span className="ml-1 text-text-muted/60">
-                                          {r.date} {r.instructor}
-                                        </span>
-                                      </span>
-                                    ))}
+                        <Separator />
+                        <CardContent className="p-0">
+                          {cgProgress.units.map((unit, i) => (
+                            <div key={unit.unitId}>
+                              {i > 0 && <Separator />}
+                              <div className="px-4 py-2.5">
+                                <div className="flex items-center gap-3">
+                                  <StatusIcon status={unit.status} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate leading-tight">
+                                      {unit.unitName}
+                                    </p>
+                                    {unit.records.length > 0 && (
+                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        {unit.records.map((r, j) => (
+                                          <span
+                                            key={j}
+                                            className="text-[11px] text-muted-foreground tabular-nums inline-flex items-center gap-1"
+                                          >
+                                            <Badge variant="secondary" className="text-[9px] h-3.5 px-1 font-semibold">
+                                              {stepLabel(r.stepType)}
+                                            </Badge>
+                                            {r.score !== null
+                                              ? `${r.score}/${r.maxScore}`
+                                              : "配布"}
+                                            <span className="text-muted-foreground/50">
+                                              {r.date}
+                                            </span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
-                                )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
+                          ))}
+                        </CardContent>
+                      </details>
+                    </Card>
                   );
                 })}
-              </div>
+              </section>
             );
           })}
         </div>
