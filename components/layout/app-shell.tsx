@@ -10,8 +10,8 @@ import {
   Settings,
   LogOut,
   Menu,
-  BookOpen,
 } from "lucide-react";
+import Image from "next/image";
 import type { UserRole } from "@/lib/types/supabase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -78,9 +78,7 @@ export function AppShell({
           <SheetContent side="left" className="w-72 p-0">
             <SheetHeader className="px-5 py-4 border-b border-border/50">
               <SheetTitle className="flex items-center gap-2.5 text-left">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-                  <BookOpen className="h-4 w-4 text-primary-foreground" />
-                </div>
+                <Image src="/icon.png" alt="Lesson Track" width={32} height={32} className="rounded-lg shadow-sm" />
                 <span className="font-bold tracking-tight">Lesson Track</span>
               </SheetTitle>
             </SheetHeader>
@@ -124,7 +122,7 @@ export function AppShell({
         </Sheet>
 
         <div className="flex items-center gap-2">
-          <BookOpen className="h-5 w-5 text-primary" />
+          <Image src="/icon.png" alt="Lesson Track" width={24} height={24} className="rounded" />
           <span className="font-bold text-sm tracking-tight">Lesson Track</span>
         </div>
 
@@ -156,9 +154,7 @@ export function AppShell({
       {/* ==================== Desktop Sidebar ==================== */}
       <aside className="hidden md:flex md:flex-col md:w-60 md:sticky md:top-0 md:h-dvh bg-sidebar border-r border-sidebar-border">
         <div className="flex items-center gap-2.5 px-5 h-14 border-b border-sidebar-border">
-          <div className="w-7 h-7 rounded-lg bg-sidebar-primary flex items-center justify-center">
-            <BookOpen className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
-          </div>
+          <Image src="/icon.png" alt="Lesson Track" width={28} height={28} className="rounded-lg" />
           <span className="font-bold text-sm tracking-tight text-sidebar-foreground">Lesson Track</span>
         </div>
 
