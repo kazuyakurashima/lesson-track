@@ -1309,9 +1309,6 @@ export default function RecordPage() {
           {/* Score inputs */}
           {renderScoreInputs()}
 
-          {/* Recommendations */}
-          {renderRecommendations()}
-
           {/* Validation messages */}
           {!selectedSubjectId && (
             <p className="text-xs text-danger">科目を選択してください</p>
@@ -1323,30 +1320,33 @@ export default function RecordPage() {
             <p className="text-xs text-danger">単元を選択してください</p>
           )}
 
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            disabled={saving || !canSave}
-            className="w-full py-3 rounded-lg bg-primary text-white font-semibold
-                     hover:bg-primary-dark active:scale-[0.98] transition-all
-                     disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {saving ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <Check size={18} />
-            )}
-            保存する
-          </button>
+          {/* Save + Continue buttons (directly after score inputs) */}
+          <div className="space-y-3">
+            <button
+              onClick={handleSave}
+              disabled={saving || !canSave}
+              className="w-full py-3 rounded-lg bg-primary text-white font-semibold
+                       hover:bg-primary-dark active:scale-[0.98] transition-all
+                       disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Check size={18} />
+              )}
+              保存する
+            </button>
+            <button
+              onClick={handleContinue}
+              className="w-full py-3 rounded-lg border border-border text-text font-medium
+                       hover:bg-surface transition-all"
+            >
+              続けて記録する
+            </button>
+          </div>
 
-          {/* Continue recording */}
-          <button
-            onClick={handleContinue}
-            className="w-full py-3 rounded-lg border border-border text-text font-medium
-                     hover:bg-surface transition-all"
-          >
-            続けて記録する
-          </button>
+          {/* Recommendations (reference, below action buttons) */}
+          {renderRecommendations()}
         </div>
       )}
     </div>
