@@ -87,18 +87,58 @@ function normalize(s: string): string {
     .toLowerCase();
 }
 
+/**
+ * Alias map: AI-returned names → DB content_group names.
+ * Handles common print header patterns that don't exactly match DB names.
+ */
+const CONTENT_GROUP_ALIASES: Record<string, string> = {
+  // English
+  "英文法1": "英文法",
+  "英文法１": "英文法",
+  "英文法 1": "英文法",
+  "英文法 １": "英文法",
+  "英文法入門": "英文法 入門",
+  // Math
+  "数学1年": "1年[共通版]",
+  "数学１年": "1年[共通版]",
+  "数学 1年": "1年[共通版]",
+  "数学 １年": "1年[共通版]",
+  "中1": "1年[共通版]",
+  "中学1年": "1年[共通版]",
+  "数学2年": "2年[共通版]",
+  "数学２年": "2年[共通版]",
+  "数学 2年": "2年[共通版]",
+  "数学 ２年": "2年[共通版]",
+  "中2": "2年[共通版]",
+  "中学2年": "2年[共通版]",
+  "1年まとめ": "1年のまとめ",
+  "1年の纏め": "1年のまとめ",
+  "2年まとめ": "2年のまとめ",
+  "2年の纏め": "2年のまとめ",
+};
+
+/** Apply alias mapping, then normalize */
+function resolveAlias(aiName: string): string {
+  const norm = normalize(aiName);
+  for (const [alias, target] of Object.entries(CONTENT_GROUP_ALIASES)) {
+    if (norm === normalize(alias)) return normalize(target);
+  }
+  return norm;
+}
+
 /** Fuzzy-match an AI-returned name against a list of DB records.
  *  Returns the best match or null. */
 function fuzzyMatch<T extends { name: string }>(
   aiName: string | null,
   candidates: T[],
-  tiebreaker: (a: T, b: T) => number
+  tiebreaker: (a: T, b: T) => number,
+  useAlias = false
 ): T | null {
   if (!aiName || candidates.length === 0) return null;
 
-  const norm = normalize(aiName);
+  const norm = useAlias ? resolveAlias(aiName) : normalize(aiName);
 
-  // 1. Exact match
+  // 1. Exact match (after alias resolution)
   const exact = candidates.find((c) => normalize(c.name) === norm);
   if (exact) return exact;
 
@@ -427,7 +467,8 @@ export default function RecordPage() {
       const matchedCG = fuzzyMatch(
         result.content_group_name,
         cgsForSubject,
-        (a, b) => a.display_order - b.display_order
+        (a, b) => a.display_order - b.display_order,
+        true // use alias mapping for content group names
       );
       if (matchedCG) {
         setSelectedContentGroupId(matchedCG.id);
