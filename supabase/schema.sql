@@ -297,8 +297,11 @@ BEGIN
     (v_english_id,  '英文法',               'academic',   NULL, 1),
     (v_english_id,  '英熟語 高校入試重要300', 'vocabulary', NULL, 2),
     (v_english_id,  '英単語 高校入試重要600', 'vocabulary', NULL, 3),
+    (v_english_id,  '英文法 入門',           'academic',   NULL, 4),
     (v_math_id,     '1年のまとめ',           'academic',   '中1', 1),
     (v_math_id,     '2年のまとめ',           'academic',   '中2', 2),
+    (v_math_id,     '1年[共通版]',           'academic',   '中1', 3),
+    (v_math_id,     '2年[共通版]',           'academic',   '中2', 4),
     (v_japanese_id, '東京書籍1年 漢字',      'vocabulary', '中1', 1),
     (v_japanese_id, '東京書籍2年 漢字',      'vocabulary', '中2', 2)
   ON CONFLICT (subject_id, display_order) DO NOTHING;
