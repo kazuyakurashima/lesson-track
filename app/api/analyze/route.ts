@@ -171,22 +171,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // Extract JSON from response (handle ```json ... ``` wrapping)
+    // Extract JSON from response (handle ```json ... ``` wrapping and thinking)
     const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    // Use greedy match to capture the full JSON object
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("Could not find JSON in Gemini response:", cleaned.slice(0, 300));
-      return NextResponse.json(
-        { error: "Could not parse AI response", debug: cleaned.slice(0, 200) },
-        { status: 502 }
-      );
+
+    // Try multiple parsing strategies
+    let parsed: Record<string, unknown>;
+    try {
+      // Strategy 1: direct parse
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Strategy 2: find balanced JSON object
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start === -1 || end === -1 || end <= start) {
+        console.error("No JSON in Gemini response:", cleaned.slice(0, 500));
+        return NextResponse.json(
+          { error: "Could not parse AI response", debug: cleaned.slice(0, 300) },
+          { status: 502 }
+        );
+      }
+      try {
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
+      } catch {
+        console.error("JSON parse failed:", cleaned.slice(start, end + 1).slice(0, 500));
+        return NextResponse.json(
+          { error: "JSON parse error", debug: cleaned.slice(start, Math.min(start + 300, end + 1)) },
+          { status: 502 }
+        );
+      }
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-
     // Normalize step_type (handle fullwidth, hyphens, spaces, etc.)
-    let stepType: string | null = parsed.step_type;
+    let stepType: string | null = (parsed.step_type as string) ?? null;
     if (stepType) {
       const normalized = stepType
         .normalize("NFKC") // fullwidth → halfwidth (Ｓ１ → S1, etc.)

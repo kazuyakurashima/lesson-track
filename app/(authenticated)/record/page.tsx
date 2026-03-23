@@ -465,17 +465,47 @@ export default function RecordPage() {
         (cg) => cg.subject_id === targetSubjectId
       );
 
-      // --- Match content group ---
-      const matchedCG = fuzzyMatch(
+      // --- Match content group (with unit-based disambiguation) ---
+      let matchedCG = fuzzyMatch(
         result.content_group_name,
         cgsForSubject,
         (a, b) => a.display_order - b.display_order,
         true // use alias mapping for content group names
       );
+
+      // If we have a unit name, try to find which CG actually contains it.
+      // This handles cases like AI returning "英文法" when the unit belongs to "英文法 入門".
+      if (result.unit_name && cgsForSubject.length > 0) {
+        const cgIds = cgsForSubject.map((cg) => cg.id);
+        const { data: allCgUnits } = await supabase
+          .from("units")
+          .select("id, name, unit_number, content_group_id")
+          .in("content_group_id", cgIds)
+          .order("unit_number");
+
+        if (allCgUnits && allCgUnits.length > 0) {
+          // Try to find the unit across all CGs for this subject
+          const unitMatch = fuzzyMatch(
+            result.unit_name,
+            allCgUnits as Unit[],
+            (a, b) => a.unit_number - b.unit_number
+          );
+          if (unitMatch) {
+            // Use the CG that actually contains this unit
+            const correctCG = cgsForSubject.find(
+              (cg) => cg.id === unitMatch.content_group_id
+            );
+            if (correctCG) {
+              matchedCG = correctCG;
+            }
+          }
+        }
+      }
+
       if (matchedCG) {
         setSelectedContentGroupId(matchedCG.id);
 
-        // We need to load units for this CG to match unit
+        // Load units for matched CG
         const { data: cgUnits } = await supabase
           .from("units")
           .select("id, name, unit_number, content_group_id")
