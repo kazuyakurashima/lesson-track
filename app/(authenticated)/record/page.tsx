@@ -63,6 +63,7 @@ interface AiAnalyzeResult {
   score: number | null;
   max_score: number | null;
   confidence: number;
+  raw_response?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1314,6 +1315,10 @@ export default function RecordPage() {
                     信頼度 {Math.round(aiResult.confidence * 100)}%
                   </span>
                 </div>
+              </div>
+              <div className="mt-2 text-xs text-text-muted space-y-0.5">
+                <p>読取: 科目「{aiResult.subject_name ?? "—"}」 教材「{aiResult.content_group_name ?? "—"}」</p>
+                <p>単元「{aiResult.unit_name ?? "—"}」 ステップ「{aiResult.step_type ?? "—"}」</p>
               </div>
               {showYellowWarning && (
                 <div className="flex items-center gap-1.5 mt-2 text-warning text-xs">
