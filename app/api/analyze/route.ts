@@ -162,12 +162,23 @@ export async function POST(request: Request) {
       .map((p: { text: string }) => p.text)
       .join("");
 
-    // Extract JSON from response (handle ```json ... ``` wrapping)
-    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-    const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) {
+    // If no text parts found, log full response for debugging
+    if (!text) {
+      console.error("Gemini returned no text parts:", JSON.stringify(geminiData).slice(0, 500));
       return NextResponse.json(
-        { error: "Could not parse AI response" },
+        { error: "AI returned empty response", debug: JSON.stringify(geminiData).slice(0, 300) },
+        { status: 502 }
+      );
+    }
+
+    // Extract JSON from response (handle ```json ... ``` wrapping)
+    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    // Use greedy match to capture the full JSON object
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("Could not find JSON in Gemini response:", cleaned.slice(0, 300));
+      return NextResponse.json(
+        { error: "Could not parse AI response", debug: cleaned.slice(0, 200) },
         { status: 502 }
       );
     }

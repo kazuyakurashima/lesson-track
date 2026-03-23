@@ -204,6 +204,7 @@ export default function RecordPage() {
   const [aiResult, setAiResult] = useState<AiAnalyzeResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [aiError, setAiError] = useState(false);
+  const [aiErrorMsg, setAiErrorMsg] = useState("");
 
   // ---- Confirm / Save -----------------------------------------------------
   const [score, setScore] = useState("");
@@ -523,6 +524,7 @@ export default function RecordPage() {
     if (!imageFile) return;
     setAnalyzing(true);
     setAiError(false);
+    setAiErrorMsg("");
     setAiResult(null);
 
     const formData = new FormData();
@@ -534,7 +536,11 @@ export default function RecordPage() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("API error");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        console.error("Analyze API error:", res.status, errBody);
+        throw new Error(errBody.debug || errBody.error || "API error");
+      }
 
       const data: AiAnalyzeResult = await res.json();
       setAiResult(data);
@@ -556,8 +562,9 @@ export default function RecordPage() {
 
       // Move to confirmation step
       setCurrentStep(2);
-    } catch {
+    } catch (err) {
       setAiError(true);
+      setAiErrorMsg(err instanceof Error ? err.message : "Unknown error");
       applyRecommendationFallback();
       setCurrentStep(2);
     } finally {
@@ -1342,6 +1349,9 @@ export default function RecordPage() {
                 <AlertTriangle size={14} />
                 AI解析に失敗しました。手動で入力してください
               </div>
+              {aiErrorMsg && (
+                <p className="text-xs text-text-muted mt-1 break-all">{aiErrorMsg}</p>
+              )}
             </div>
           )}
 
