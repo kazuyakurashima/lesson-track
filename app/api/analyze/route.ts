@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Extend Vercel serverless function timeout to 60 seconds
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   // Verify authentication
   const supabase = await createClient();
@@ -139,6 +142,8 @@ export async function POST(request: Request) {
           generationConfig: {
             temperature: 0,
             maxOutputTokens: 512,
+            // Disable thinking to speed up response and avoid timeout
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       }
