@@ -78,14 +78,27 @@ const STEP_TYPE_OPTIONS: { value: StepType; label: string }[] = [
   { value: "step2", label: "ステップ2" },
 ];
 
-/** Normalize a string for fuzzy matching (fullwidth→halfwidth, trim, lowercase). */
+/** Circled number mappings for normalization */
+const CIRCLED_TO_NUM: Record<string, string> = {
+  "①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5",
+  "⑥": "6", "⑦": "7", "⑧": "8", "⑨": "9", "⑩": "10",
+  "⑪": "11", "⑫": "12", "⑬": "13", "⑭": "14", "⑮": "15",
+  "⑯": "16", "⑰": "17", "⑱": "18", "⑲": "19", "⑳": "20",
+};
+
+/** Normalize a string for fuzzy matching (fullwidth→halfwidth, circled→digit, trim, lowercase). */
 function normalize(s: string): string {
-  return s
+  let result = s
     .normalize("NFKC") // fullwidth → halfwidth, etc.
     .replace(/\u3000/g, " ") // fullwidth space
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+  // Convert circled numbers to regular digits for matching
+  for (const [circled, num] of Object.entries(CIRCLED_TO_NUM)) {
+    result = result.replaceAll(circled, num);
+  }
+  return result;
 }
 
 /**
