@@ -59,6 +59,7 @@ interface AiAnalyzeResult {
   subject_name: string | null;
   content_group_name: string | null;
   unit_name: string | null;
+  unit_number: number | null;
   step_type: StepType | null;
   score: number | null;
   max_score: number | null;
@@ -513,15 +514,24 @@ export default function RecordPage() {
 
         if (allCgUnits && allCgUnits.length > 0) {
           // Try to find the unit across all CGs for this subject
-          const unitMatch = fuzzyMatch(
+          let unitMatch = fuzzyMatch(
             result.unit_name,
             allCgUnits as Unit[],
             (a, b) => a.unit_number - b.unit_number
           );
+
+          // Fallback: if name match failed but we have unit_number + matched CG,
+          // try matching by number within the already-matched CG
+          if (!unitMatch && result.unit_number && matchedCG) {
+            unitMatch = (allCgUnits as Unit[]).find(
+              (u) => u.content_group_id === matchedCG!.id && u.unit_number === result.unit_number
+            ) ?? null;
+          }
+
           if (unitMatch) {
             // Use the CG that actually contains this unit
             const correctCG = cgsForSubject.find(
-              (cg) => cg.id === unitMatch.content_group_id
+              (cg) => cg.id === unitMatch!.content_group_id
             );
             if (correctCG) {
               matchedCG = correctCG;
@@ -541,11 +551,17 @@ export default function RecordPage() {
           .order("unit_number");
 
         if (cgUnits) {
-          const matchedUnit = fuzzyMatch(
+          let matchedUnit = fuzzyMatch(
             result.unit_name,
             cgUnits as Unit[],
             (a, b) => a.unit_number - b.unit_number
           );
+          // Fallback: match by unit_number if name match failed
+          if (!matchedUnit && result.unit_number) {
+            matchedUnit = (cgUnits as Unit[]).find(
+              (u) => u.unit_number === result.unit_number
+            ) ?? null;
+          }
           if (matchedUnit) {
             setSelectedUnit(matchedUnit);
           }
