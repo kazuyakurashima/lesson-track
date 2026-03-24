@@ -1478,6 +1478,26 @@ export default function RecordPage() {
             >
               続けて記録する
             </button>
+            <button
+              onClick={() => {
+                // Keep the same student, go back to photo step
+                setCurrentStep(1);
+                setImageFile(null);
+                setImagePreview(null);
+                setAiResult(null);
+                setSelectedContentGroupId("");
+                setSelectedUnit(null);
+                setSelectedStepType("step1");
+                setScore("");
+                setMaxScore("");
+                setComment("");
+                setSaveError(null);
+              }}
+              className="w-full py-3 rounded-lg border border-dashed border-border text-muted-foreground text-sm
+                       hover:bg-surface transition-all"
+            >
+              再撮影する
+            </button>
           </div>
 
           {/* Recommendations (reference, below action buttons) */}
