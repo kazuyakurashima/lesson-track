@@ -157,19 +157,25 @@ function fuzzyMatch<T extends { name: string }>(
   if (exact) return exact;
 
   // 2. Partial match — collect all candidates where one contains the other
-  const partials: { item: T; matchLen: number }[] = [];
+  const partials: { item: T; overlap: number; lenDiff: number }[] = [];
   for (const c of candidates) {
     const cn = normalize(c.name);
     if (cn.includes(norm) || norm.includes(cn)) {
-      partials.push({ item: c, matchLen: Math.min(cn.length, norm.length) });
+      // overlap = how many chars of the longer string are covered
+      const overlap = Math.min(cn.length, norm.length);
+      // lenDiff = how close the candidate is to the AI string (lower = better)
+      const lenDiff = Math.abs(cn.length - norm.length);
+      partials.push({ item: c, overlap, lenDiff });
     }
   }
 
   if (partials.length === 0) return null;
 
-  // 3. Longest match wins
+  // 3. Prefer candidate closest in length to AI string (smallest lenDiff),
+  //    then longest overlap, then tiebreaker
   partials.sort((a, b) => {
-    if (b.matchLen !== a.matchLen) return b.matchLen - a.matchLen;
+    if (a.lenDiff !== b.lenDiff) return a.lenDiff - b.lenDiff;
+    if (b.overlap !== a.overlap) return b.overlap - a.overlap;
     return tiebreaker(a.item, b.item);
   });
 
