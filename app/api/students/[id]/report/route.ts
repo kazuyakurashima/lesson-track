@@ -179,17 +179,104 @@ export async function GET(
   };
 
   // =========================================================================
-  // Generate print-friendly HTML
+  // Build per-CG stats for summary
+  // =========================================================================
+  interface CGStat {
+    cgName: string;
+    subjectName: string;
+    totalUnits: number;
+    completedUnits: number;
+    recordCount: number;
+    avgPct: number | null;
+  }
+
+  const cgStats: CGStat[] = [];
+  const recordsByCG = new Map<string, typeof allRecords>();
+
+  for (const r of allRecords) {
+    const unit = unitMap.get(r.unit_id);
+    if (!unit) continue;
+    const cgId = unit.content_group_id;
+    if (!recordsByCG.has(cgId)) recordsByCG.set(cgId, []);
+    recordsByCG.get(cgId)!.push(r);
+  }
+
+  for (const subject of filteredSubjects) {
+    const subjectCGs = (allContentGroups ?? []).filter(
+      (cg: CGInfo) => cg.subject_id === subject.id
+    );
+    for (const cg of subjectCGs) {
+      const cgRecords = recordsByCG.get(cg.id) ?? [];
+      const cgUnits = (allUnits ?? []).filter((u: UnitInfo) => u.content_group_id === cg.id);
+      const completed = new Set(
+        cgRecords.filter((r) => r.completion_type != null).map((r) => r.unit_id)
+      ).size;
+      const scored = cgRecords.filter((r) => r.score != null && r.max_score != null && r.max_score! > 0);
+      const avg = scored.length > 0
+        ? Math.round(scored.reduce((s, r) => s + (r.score! / r.max_score!) * 100, 0) / scored.length)
+        : null;
+
+      if (cgRecords.length > 0 || cgUnits.length > 0) {
+        cgStats.push({
+          cgName: cg.name,
+          subjectName: subject.name,
+          totalUnits: cgUnits.length,
+          completedUnits: completed,
+          recordCount: cgRecords.length,
+          avgPct: avg,
+        });
+      }
+    }
+  }
+
+  // =========================================================================
+  // Summary section HTML
+  // =========================================================================
+  const totalRecords = allRecords.length;
+  const allScored = allRecords.filter((r) => r.score != null && r.max_score != null && r.max_score! > 0);
+  const overallAvg = allScored.length > 0
+    ? Math.round(allScored.reduce((s, r) => s + (r.score! / r.max_score!) * 100, 0) / allScored.length)
+    : null;
+  const uniqueDates = new Set(allRecords.map((r) => r.lesson_date)).size;
+
+  let summaryRows = "";
+  for (const stat of cgStats) {
+    const pct = stat.totalUnits > 0 ? Math.round((stat.completedUnits / stat.totalUnits) * 100) : 0;
+    summaryRows += `<tr>
+      <td class="subject-label">${escapeHtml(stat.subjectName)}</td>
+      <td>${escapeHtml(stat.cgName)}</td>
+      <td class="center num-col">${stat.completedUnits}/${stat.totalUnits}</td>
+      <td class="progress-cell">
+        <div class="mini-bar"><div class="mini-fill" style="width:${pct}%"></div></div>
+        <span class="mini-pct">${pct}%</span>
+      </td>
+      <td class="center num-col">${stat.avgPct != null ? `<span class="${stat.avgPct >= 80 ? 'score-high' : stat.avgPct >= 60 ? 'score-mid' : 'score-low'}">${stat.avgPct}%</span>` : '—'}</td>
+      <td class="center num-col">${stat.recordCount}</td>
+    </tr>`;
+  }
+
+  const summarySection = `
+  <div class="summary-section">
+    <h2 class="section-title">学習概要</h2>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-value">${totalRecords}</div><div class="kpi-label">学習記録数</div></div>
+      <div class="kpi"><div class="kpi-value">${uniqueDates}</div><div class="kpi-label">学習日数</div></div>
+      <div class="kpi"><div class="kpi-value">${overallAvg != null ? overallAvg + '%' : '—'}</div><div class="kpi-label">全体平均正答率</div></div>
+    </div>
+    <table class="summary-table">
+      <thead><tr><th>科目</th><th>教材</th><th class="center">進捗</th><th>達成度</th><th class="center">正答率</th><th class="center">記録数</th></tr></thead>
+      <tbody>${summaryRows}</tbody>
+    </table>
+  </div>`;
+
+  // =========================================================================
+  // Detail sections HTML
   // =========================================================================
   let subjectSections = "";
 
   for (const subject of filteredSubjects) {
     const subjectRecords = recordsBySubject.get(subject.id) ?? [];
     if (subjectRecords.length === 0) continue;
-
-    const subjectCGs = (allContentGroups ?? []).filter(
-      (cg: CGInfo) => cg.subject_id === subject.id
-    );
 
     // Table rows
     let rows = "";
@@ -211,17 +298,6 @@ export async function GET(
       </tr>`;
     }
 
-    // Progress
-    const completedUnits = new Set(
-      subjectRecords
-        .filter((r) => r.completion_type != null)
-        .map((r) => r.unit_id)
-    ).size;
-    const totalUnits = (allUnits ?? []).filter((u: UnitInfo) =>
-      subjectCGs.some((cg: CGInfo) => cg.id === u.content_group_id)
-    ).length;
-    const pct = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
-
     // Comments (latest 3)
     const comments = subjectRecords
       .filter((r) => r.comment && r.comment.trim())
@@ -242,20 +318,11 @@ export async function GET(
       commentHtml += `</div>`;
     }
 
-    // Summary stats
-    const avgScore = subjectRecords.filter((r) => r.score != null && r.max_score != null && r.max_score > 0);
-    const avgPct = avgScore.length > 0
-      ? Math.round(avgScore.reduce((sum, r) => sum + (r.score! / r.max_score!) * 100, 0) / avgScore.length)
-      : null;
-
     subjectSections += `
       <div class="subject-section">
         <div class="subject-header">
           <h2>${escapeHtml(subject.name)}</h2>
-          <div class="subject-stats">
-            <span>記録 <strong>${subjectRecords.length}</strong>件</span>
-            ${avgPct != null ? `<span>平均 <strong>${avgPct}%</strong></span>` : ''}
-          </div>
+          <span class="record-count">${subjectRecords.length}件</span>
         </div>
         <table>
           <thead>
@@ -263,11 +330,6 @@ export async function GET(
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <div class="progress-row">
-          <div class="progress-label">進捗</div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          <div class="progress-value">${completedUnits}/${totalUnits} 完了（${pct}%）</div>
-        </div>
         ${commentHtml}
       </div>`;
   }
@@ -277,16 +339,16 @@ export async function GET(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>学習レポート - ${escapeHtml(student.name)}</title>
+<title>学習レポート - ${escapeHtml(student.name)} | 東進育英舎</title>
 <style>
-  @page { size: A4; margin: 18mm 15mm; }
+  @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Meiryo", "Yu Gothic", sans-serif;
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
     font-size: 10px;
     color: #1e293b;
-    line-height: 1.6;
-    background: #f8fafc;
+    line-height: 1.55;
+    background: #f1f5f9;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -294,270 +356,148 @@ export async function GET(
     max-width: 210mm;
     margin: 0 auto;
     background: white;
-    padding: 24px 28px;
-    min-height: 100vh;
+    padding: 20px 24px;
   }
+  @media screen { .page { box-shadow: 0 1px 8px rgba(0,0,0,.08); margin-top: 12px; margin-bottom: 12px; } }
   @media print {
-    .page { padding: 0; background: none; min-height: auto; box-shadow: none; }
     body { background: none; margin: 0; padding: 0; }
-    .print-btn { display: none !important; }
+    .page { padding: 0; box-shadow: none; }
+    .no-print { display: none !important; }
   }
 
   /* ===== Header ===== */
   .report-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 14px;
-    margin-bottom: 20px;
-    border-bottom: 3px solid #1e3a5f;
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 12px; margin-bottom: 16px;
+    border-bottom: 2.5px solid #1e3a5f;
   }
-  .report-header .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 32px; height: 32px; background: #1e3a5f; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
   }
-  .report-header .brand-icon {
-    width: 36px; height: 36px;
-    background: #1e3a5f;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .report-header .brand-icon svg {
-    width: 20px; height: 20px; fill: white;
-  }
-  .report-header .brand-text h1 {
-    font-size: 16px;
-    font-weight: 700;
-    color: #1e3a5f;
-    letter-spacing: -0.02em;
-  }
-  .report-header .brand-text .tagline {
-    font-size: 9px;
-    color: #64748b;
-    font-weight: 400;
-  }
-  .report-header .report-type {
-    font-size: 11px;
-    color: #475569;
-    text-align: right;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-  }
+  .brand-icon svg { width: 18px; height: 18px; fill: white; }
+  .brand-text h1 { font-size: 15px; font-weight: 700; color: #1e3a5f; letter-spacing: -0.01em; }
+  .brand-text .tagline { font-size: 8px; color: #64748b; }
+  .report-type { font-size: 10px; color: #475569; font-weight: 600; letter-spacing: 0.05em; }
 
   /* ===== Student Card ===== */
   .student-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 14px 18px;
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center;
   }
-  .student-card .name {
-    font-size: 16px;
-    font-weight: 700;
-    color: #0f172a;
-  }
+  .student-card .name { font-size: 15px; font-weight: 700; color: #0f172a; }
   .student-card .grade {
-    display: inline-block;
-    background: #1e3a5f;
-    color: white;
-    font-size: 9px;
-    font-weight: 600;
-    padding: 2px 10px;
-    border-radius: 10px;
-    margin-left: 10px;
+    display: inline-block; background: #1e3a5f; color: white;
+    font-size: 8px; font-weight: 600; padding: 2px 9px; border-radius: 10px; margin-left: 8px;
   }
-  .student-card .meta-right {
-    text-align: right;
-    font-size: 9px;
-    color: #64748b;
-    line-height: 1.8;
-  }
+  .student-card .meta-right { text-align: right; font-size: 8px; color: #64748b; line-height: 1.7; }
 
-  /* ===== Subject Section ===== */
-  .subject-section {
-    margin-bottom: 24px;
-    page-break-inside: avoid;
-  }
-  .subject-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  .subject-header h2 {
-    font-size: 13px;
-    font-weight: 700;
-    color: #1e3a5f;
-    padding-left: 10px;
-    border-left: 4px solid #3b82f6;
-  }
-  .subject-stats {
-    display: flex;
-    gap: 16px;
-    font-size: 9px;
-    color: #64748b;
-  }
-  .subject-stats strong { color: #1e293b; }
-
-  /* ===== Table ===== */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 9px;
+  /* ===== Section Title ===== */
+  .section-title {
+    font-size: 12px; font-weight: 700; color: #1e3a5f;
+    padding-left: 9px; border-left: 3.5px solid #3b82f6;
     margin-bottom: 10px;
   }
+
+  /* ===== KPI Row ===== */
+  .kpi-row {
+    display: flex; gap: 12px; margin-bottom: 12px;
+  }
+  .kpi {
+    flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 10px 12px; text-align: center;
+  }
+  .kpi-value { font-size: 20px; font-weight: 700; color: #1e3a5f; font-variant-numeric: tabular-nums; }
+  .kpi-label { font-size: 8px; color: #64748b; margin-top: 2px; }
+
+  /* ===== Summary Table ===== */
+  .summary-section { margin-bottom: 20px; }
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 9px; }
+  .summary-table th {
+    background: #1e3a5f; color: white; padding: 5px 8px;
+    text-align: left; font-size: 8px; font-weight: 600; letter-spacing: 0.03em;
+  }
+  .summary-table td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+  .summary-table tr:nth-child(even) { background: #f8fafc; }
+  .subject-label { font-weight: 600; color: #1e3a5f; white-space: nowrap; }
+  .num-col { width: 55px; font-variant-numeric: tabular-nums; }
+  .progress-cell { width: 120px; }
+  .mini-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; display: inline-block; width: 70px; vertical-align: middle; }
+  .mini-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 3px; }
+  .mini-pct { font-size: 8px; color: #475569; margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+  /* ===== Detail Divider ===== */
+  .detail-divider {
+    margin: 18px 0 14px; padding-top: 14px;
+    border-top: 1.5px solid #e2e8f0;
+  }
+  .detail-divider .section-title { color: #475569; font-size: 11px; }
+
+  /* ===== Subject Section ===== */
+  .subject-section { margin-bottom: 18px; page-break-inside: avoid; }
+  .subject-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .subject-header h2 {
+    font-size: 11px; font-weight: 700; color: #1e3a5f;
+    padding-left: 8px; border-left: 3px solid #3b82f6;
+  }
+  .record-count { font-size: 8px; color: #64748b; }
+
+  /* ===== Detail Table ===== */
+  table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 8px; }
   thead { border-bottom: 2px solid #e2e8f0; }
   th {
-    background: #f1f5f9;
-    padding: 6px 8px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 8px;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    background: #f1f5f9; padding: 5px 7px; text-align: left;
+    font-weight: 600; font-size: 8px; color: #475569; letter-spacing: 0.03em;
   }
-  td {
-    padding: 5px 8px;
-    border-bottom: 1px solid #f1f5f9;
-    vertical-align: middle;
-  }
+  td { padding: 4px 7px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
   tr:nth-child(even) { background: #fafbfd; }
-  tr:hover { background: #f1f5f9; }
   .center { text-align: center; }
-  .date-col { width: 60px; white-space: nowrap; color: #64748b; }
-  .cg-col { width: 100px; font-size: 8px; color: #64748b; }
-  .step-col { width: 70px; }
-  .score-col { width: 55px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .instructor-col { width: 50px; font-size: 8px; color: #64748b; }
+  .date-col { width: 55px; white-space: nowrap; color: #64748b; }
+  .cg-col { width: 90px; font-size: 8px; color: #64748b; }
+  .step-col { width: 65px; }
+  .score-col { width: 50px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .instructor-col { width: 45px; font-size: 8px; color: #64748b; }
   .step-badge {
-    display: inline-block;
-    font-size: 8px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: #e2e8f0;
-    color: #475569;
-    font-weight: 500;
+    display: inline-block; font-size: 7px; padding: 1px 5px;
+    border-radius: 3px; background: #e2e8f0; color: #475569; font-weight: 500;
   }
-  .score-high { color: #059669; }
+  .score-high { color: #059669; font-weight: 700; }
   .score-mid { color: #d97706; }
   .score-low { color: #dc2626; }
 
-  /* ===== Progress ===== */
-  .progress-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-  .progress-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: #475569;
-    width: 32px;
-  }
-  .progress-bar {
-    flex: 1;
-    max-width: 180px;
-    height: 8px;
-    background: #e2e8f0;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #3b82f6, #2563eb);
-    border-radius: 4px;
-    transition: width 0.3s;
-  }
-  .progress-value {
-    font-size: 9px;
-    color: #475569;
-    font-variant-numeric: tabular-nums;
-  }
-
   /* ===== Comments ===== */
   .comment-box {
-    background: #fefce8;
-    border: 1px solid #fde68a;
-    border-radius: 6px;
-    padding: 10px 14px;
-    margin-top: 6px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 5px;
+    padding: 8px 12px; margin-top: 4px;
   }
-  .comment-title {
-    font-size: 9px;
-    font-weight: 700;
-    color: #92400e;
-    margin-bottom: 6px;
-  }
-  .comment-item {
-    margin-bottom: 4px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #fef3c7;
-  }
+  .comment-title { font-size: 8px; font-weight: 700; color: #92400e; margin-bottom: 4px; }
+  .comment-item { margin-bottom: 3px; padding-bottom: 3px; border-bottom: 1px solid #fef3c7; }
   .comment-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-  .comment-date {
-    font-size: 8px;
-    color: #92400e;
-    font-weight: 600;
-    margin-right: 6px;
-  }
-  .comment-unit {
-    font-size: 8px;
-    color: #a16207;
-  }
-  .comment-text {
-    font-size: 9px;
-    color: #78350f;
-    margin-top: 2px;
-    line-height: 1.5;
-  }
+  .comment-date { font-size: 7px; color: #92400e; font-weight: 600; margin-right: 4px; }
+  .comment-unit { font-size: 7px; color: #a16207; }
+  .comment-text { font-size: 8px; color: #78350f; margin-top: 1px; line-height: 1.4; }
 
   /* ===== Footer ===== */
   .report-footer {
-    margin-top: 28px;
-    padding-top: 10px;
-    border-top: 2px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 8px;
-    color: #94a3b8;
-  }
-  .report-footer .confidential {
-    font-size: 7px;
-    color: #cbd5e1;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    margin-top: 20px; padding-top: 8px; border-top: 1.5px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 7px; color: #94a3b8;
   }
 
   /* ===== Print button ===== */
   .print-btn {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    padding: 10px 24px;
-    background: #1e3a5f;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    z-index: 100;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    font-family: inherit;
+    position: fixed; top: 12px; right: 12px; padding: 8px 20px;
+    background: #1e3a5f; color: white; border: none; border-radius: 6px;
+    font-size: 12px; font-weight: 600; cursor: pointer; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15); font-family: inherit;
   }
   .print-btn:hover { background: #15294a; }
-  @media print { .no-print { display: none !important; } }
-  @page { margin: 15mm 10mm; }
 </style>
 </head>
 <body>
@@ -586,19 +526,26 @@ export async function GET(
     </div>
     <div class="meta-right">
       期間: ${escapeHtml(dateRange)}<br>
-      記録数: ${[...recordsBySubject.values()].reduce((sum, recs) => sum + recs.length, 0)}件
+      出力日: ${generatedDate}
     </div>
   </div>
 
-  <!-- Subject Sections -->
+  <!-- Summary -->
+  ${summarySection}
+
+  <!-- Detail Divider -->
+  <div class="detail-divider">
+    <h2 class="section-title">科目別 学習記録</h2>
+  </div>
+
   ${subjectSections}
 
-  ${subjectSections.length === 0 ? '<p style="text-align:center;color:#94a3b8;padding:40px 0;font-size:12px;">この期間の記録はありません</p>' : ''}
+  ${subjectSections.length === 0 ? '<p style="text-align:center;color:#94a3b8;padding:30px 0;font-size:11px;">この期間の記録はありません</p>' : ''}
 
   <!-- Footer -->
   <div class="report-footer">
     <span>東進育英舎 — ${generatedDate} 出力</span>
-    <span class="confidential">CONFIDENTIAL</span>
+    <span style="font-size:7px;color:#cbd5e1;letter-spacing:0.1em;">CONFIDENTIAL</span>
   </div>
 </div>
 </body>
