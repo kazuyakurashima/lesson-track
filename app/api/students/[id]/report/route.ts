@@ -297,7 +297,11 @@ export async function GET(
     padding: 24px 28px;
     min-height: 100vh;
   }
-  @media print { .page { padding: 0; background: none; } body { background: none; } }
+  @media print {
+    .page { padding: 0; background: none; min-height: auto; box-shadow: none; }
+    body { background: none; margin: 0; padding: 0; }
+    .print-btn { display: none !important; }
+  }
 
   /* ===== Header ===== */
   .report-header {
@@ -553,6 +557,7 @@ export async function GET(
   }
   .print-btn:hover { background: #15294a; }
   @media print { .no-print { display: none !important; } }
+  @page { margin: 15mm 10mm; }
 </style>
 </head>
 <body>
@@ -566,8 +571,8 @@ export async function GET(
         <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
       </div>
       <div class="brand-text">
-        <h1>Lesson Track</h1>
-        <div class="tagline">個別指導 学習管理</div>
+        <h1>東進育英舎</h1>
+        <div class="tagline">単元別教科講座</div>
       </div>
     </div>
     <div class="report-type">学習レポート</div>
@@ -592,7 +597,7 @@ export async function GET(
 
   <!-- Footer -->
   <div class="report-footer">
-    <span>Lesson Track — ${generatedDate} 出力</span>
+    <span>東進育英舎 — ${generatedDate} 出力</span>
     <span class="confidential">CONFIDENTIAL</span>
   </div>
 </div>

@@ -74,8 +74,8 @@ export function AppShell({
           <SheetContent side="left" className="w-72 p-0">
             <SheetHeader className="px-5 py-4 border-b border-border/50">
               <SheetTitle className="flex items-center gap-2.5 text-left">
-                <Image src="/icon.png" alt="Lesson Track" width={32} height={32} className="rounded-lg shadow-sm" />
-                <span className="font-bold tracking-tight">Lesson Track</span>
+                <Image src="/icon.png" alt="東進育英舎" width={32} height={32} className="rounded-lg shadow-sm" />
+                <span className="font-bold tracking-tight">東進育英舎</span>
               </SheetTitle>
             </SheetHeader>
             <nav className="px-3 py-4 space-y-1">
@@ -118,8 +118,8 @@ export function AppShell({
         </Sheet>
 
         <div className="flex items-center gap-2">
-          <Image src="/icon.png" alt="Lesson Track" width={24} height={24} className="rounded" />
-          <span className="font-bold text-sm tracking-tight">Lesson Track</span>
+          <Image src="/icon.png" alt="東進育英舎" width={24} height={24} className="rounded" />
+          <span className="font-bold text-sm tracking-tight">東進育英舎</span>
         </div>
 
         <div className="relative">
@@ -158,8 +158,8 @@ export function AppShell({
       {/* ==================== Desktop Sidebar ==================== */}
       <aside className="hidden md:flex md:flex-col md:w-60 md:sticky md:top-0 md:h-dvh bg-sidebar border-r border-sidebar-border">
         <div className="flex items-center gap-2.5 px-5 h-14 border-b border-sidebar-border">
-          <Image src="/icon.png" alt="Lesson Track" width={28} height={28} className="rounded-lg" />
-          <span className="font-bold text-sm tracking-tight text-sidebar-foreground">Lesson Track</span>
+          <Image src="/icon.png" alt="東進育英舎" width={28} height={28} className="rounded-lg" />
+          <span className="font-bold text-sm tracking-tight text-sidebar-foreground">東進育英舎</span>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">
