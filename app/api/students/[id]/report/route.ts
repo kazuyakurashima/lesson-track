@@ -512,7 +512,7 @@ export async function GET(
       </div>
       <div class="brand-text">
         <h1>東進育英舎</h1>
-        <div class="tagline">単元別教科講座</div>
+        <div class="tagline">単元別強化講座</div>
       </div>
     </div>
     <div class="report-type">学習レポート</div>

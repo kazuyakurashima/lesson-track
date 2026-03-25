@@ -77,7 +77,7 @@ export default function LoginPage() {
             className="mx-auto mb-4 rounded-2xl shadow-lg shadow-primary/25"
           />
           <h1 className="text-2xl font-bold tracking-tight">東進育英舎</h1>
-          <p className="text-muted-foreground text-sm mt-1">単元別教科講座</p>
+          <p className="text-muted-foreground text-sm mt-1">単元別強化講座</p>
         </div>
 
         {/* Card */}
@@ -179,7 +179,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          東進育英舎 単元別教科講座 v0.1.0
+          東進育英舎 単元別強化講座 v0.1.0
         </p>
       </div>
     </div>

@@ -18,8 +18,8 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "東進育英舎 | 単元別教科講座",
-  description: "東進育英舎 単元別教科講座 学習管理アプリ",
+  title: "東進育英舎 | 単元別強化講座",
+  description: "東進育英舎 単元別強化講座 学習管理アプリ",
 };
 
 export const viewport: Viewport = {

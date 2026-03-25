@@ -38,7 +38,7 @@ export default async function SettingsPage() {
 
       <div className="bg-card rounded-xl border border-border p-5">
         <h2 className="font-semibold mb-2">バージョン</h2>
-        <p className="text-sm text-text-muted">東進育英舎 単元別教科講座 v0.1.0</p>
+        <p className="text-sm text-text-muted">東進育英舎 単元別強化講座 v0.1.0</p>
       </div>
     </div>
   );
