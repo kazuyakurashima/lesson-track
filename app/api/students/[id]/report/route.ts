@@ -115,7 +115,7 @@ export async function GET(
   let query = supabase
     .from("lesson_records")
     .select(
-      "id, unit_id, step_type, score, max_score, lesson_date, completion_type, comment, users!inner(display_name)"
+      "id, unit_id, step_type, score, max_score, lesson_date, completion_type, comment, created_at, users!inner(display_name)"
     )
     .eq("student_id", id)
     .order("lesson_date", { ascending: true });
@@ -198,6 +198,27 @@ export async function GET(
   };
 
   // =========================================================================
+  // Dedup helper: keep only the latest record per unit+step_type
+  // =========================================================================
+  type RecordType = typeof allRecords[0];
+  function dedup(recs: RecordType[]): RecordType[] {
+    const map = new Map<string, RecordType>();
+    for (const r of recs) {
+      const key = `${r.unit_id}:${r.step_type}`;
+      const existing = map.get(key);
+      if (!existing
+        || r.lesson_date > existing.lesson_date
+        || (r.lesson_date === existing.lesson_date && r.created_at > existing.created_at)) {
+        map.set(key, r);
+      }
+    }
+    return [...map.values()];
+  }
+
+  // Dedup all records for consistent stats across the report
+  const dedupedAll = dedup(allRecords);
+
+  // =========================================================================
   // Build per-CG stats for summary
   // =========================================================================
   interface CGStat {
@@ -210,9 +231,9 @@ export async function GET(
   }
 
   const cgStats: CGStat[] = [];
-  const recordsByCG = new Map<string, typeof allRecords>();
+  const recordsByCG = new Map<string, RecordType[]>();
 
-  for (const r of allRecords) {
+  for (const r of dedupedAll) {
     const unit = unitMap.get(r.unit_id);
     if (!unit) continue;
     const cgId = unit.content_group_id;
@@ -251,12 +272,12 @@ export async function GET(
   // =========================================================================
   // Summary section HTML
   // =========================================================================
-  const totalRecords = allRecords.length;
-  const allScored = allRecords.filter((r) => r.score != null && r.max_score != null && r.max_score! > 0);
+  const totalRecords = dedupedAll.length;
+  const allScored = dedupedAll.filter((r) => r.score != null && r.max_score != null && r.max_score! > 0);
   const overallAvg = allScored.length > 0
     ? Math.round(allScored.reduce((s, r) => s + (r.score! / r.max_score!) * 100, 0) / allScored.length)
     : null;
-  const uniqueDates = new Set(allRecords.map((r) => r.lesson_date)).size;
+  const uniqueDates = new Set(dedupedAll.map((r) => r.lesson_date)).size;
 
   let summaryRows = "";
   for (const stat of cgStats) {
@@ -293,21 +314,20 @@ export async function GET(
   // =========================================================================
   let subjectSections = "";
 
-  for (const subject of filteredSubjects) {
-    const subjectRecords = recordsBySubject.get(subject.id) ?? [];
-    if (subjectRecords.length === 0) continue;
+  // Pre-group deduped records by subject_id for detail sections
+  const dedupedBySubject = new Map<string, RecordType[]>();
+  for (const r of dedupedAll) {
+    const unit = unitMap.get(r.unit_id);
+    if (!unit) continue;
+    const cg = cgMap.get(unit.content_group_id);
+    if (!cg) continue;
+    if (!dedupedBySubject.has(cg.subject_id)) dedupedBySubject.set(cg.subject_id, []);
+    dedupedBySubject.get(cg.subject_id)!.push(r);
+  }
 
-    // Group records by unit, keeping only the latest record per unit+step_type
-    // Then sort by content_group display_order → unit_number
-    const latestByUnitStep = new Map<string, typeof subjectRecords[0]>();
-    for (const record of subjectRecords) {
-      const key = `${record.unit_id}:${record.step_type}`;
-      const existing = latestByUnitStep.get(key);
-      if (!existing || record.lesson_date > existing.lesson_date) {
-        latestByUnitStep.set(key, record);
-      }
-    }
-    const dedupedRecords = [...latestByUnitStep.values()];
+  for (const subject of filteredSubjects) {
+    const dedupedRecords = dedupedBySubject.get(subject.id) ?? [];
+    if (dedupedRecords.length === 0) continue;
 
     // Sort by CG display_order → unit_number → step order
     const stepOrder: Record<string, number> = { learning: 0, step1: 1, step2: 2 };
@@ -344,8 +364,8 @@ export async function GET(
     }
 
     // Comments (latest 3)
-    const comments = subjectRecords
-      .filter((r) => r.comment && r.comment.trim())
+    const comments = dedupedRecords
+      .filter((r: RecordType) => r.comment && r.comment.trim())
       .slice(-3);
 
     let commentHtml = "";
@@ -367,7 +387,7 @@ export async function GET(
       <div class="subject-section">
         <div class="subject-header">
           <h2>${escapeHtml(subject.name)}</h2>
-          <span class="record-count">${subjectRecords.length}件</span>
+          <span class="record-count">${dedupedRecords.length}件</span>
         </div>
         <table>
           <thead>
