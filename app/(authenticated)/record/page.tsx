@@ -278,22 +278,40 @@ export default function RecordPage() {
       });
   }, [selectedStudent, supabase]);
 
-  // Load ALL content groups for the student's subjects (for AI matching + recs)
+  // Load content groups for the student's subjects, filtered by student_content_groups if set
   useEffect(() => {
-    if (subjects.length === 0) {
+    if (subjects.length === 0 || !selectedStudent) {
       setAllContentGroups([]);
       return;
     }
     const subjectIds = subjects.map((s) => s.id);
-    supabase
-      .from("content_groups")
-      .select("id, subject_id, name, category, display_order")
-      .in("subject_id", subjectIds)
-      .order("display_order")
-      .then(({ data }) => {
-        if (data) setAllContentGroups(data as ContentGroup[]);
-      });
-  }, [subjects, supabase]);
+    Promise.all([
+      supabase
+        .from("content_groups")
+        .select("id, subject_id, name, category, display_order")
+        .in("subject_id", subjectIds)
+        .order("display_order"),
+      supabase
+        .from("student_content_groups")
+        .select("content_group_id")
+        .eq("student_id", selectedStudent.id),
+    ]).then(([cgRes, scgRes]) => {
+      const allCGs = (cgRes.data ?? []) as ContentGroup[];
+      const selectedIds = new Set((scgRes.data ?? []).map((s: { content_group_id: string }) => s.content_group_id));
+      // Per-subject fallback
+      if (selectedIds.size === 0) {
+        setAllContentGroups(allCGs);
+      } else {
+        const filtered = allCGs.filter((cg) => {
+          const subjectHasSelections = allCGs.some(
+            (other) => other.subject_id === cg.subject_id && selectedIds.has(other.id)
+          );
+          return subjectHasSelections ? selectedIds.has(cg.id) : true;
+        });
+        setAllContentGroups(filtered);
+      }
+    });
+  }, [subjects, selectedStudent, supabase]);
 
   // Filter content groups when subject changes
   useEffect(() => {

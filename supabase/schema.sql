@@ -159,6 +159,28 @@ CREATE POLICY "Admins can manage student_subjects"
   );
 
 -- ============================================================
+-- Student Content Groups (optional per-student content selection)
+-- ============================================================
+CREATE TABLE student_content_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  content_group_id UUID NOT NULL REFERENCES content_groups(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(student_id, content_group_id)
+);
+
+ALTER TABLE student_content_groups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can manage student_content_groups"
+  ON student_content_groups FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE INDEX idx_student_content_groups_student ON student_content_groups(student_id);
+CREATE INDEX idx_student_content_groups_content_group ON student_content_groups(content_group_id);
+
+-- ============================================================
 -- Lesson Records
 -- ============================================================
 CREATE TABLE lesson_records (

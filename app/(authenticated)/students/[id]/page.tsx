@@ -110,12 +110,17 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
     .from("student_content_groups")
     .select("content_group_id")
     .eq("student_id", id);
-  const selectedCGIds = (studentCGs ?? []).map((scg) => scg.content_group_id);
+  const selectedCGIds = new Set((studentCGs ?? []).map((scg) => scg.content_group_id));
 
-  // Filter: if student has content group selections, show only those; otherwise show all
-  const allContentGroups = selectedCGIds.length > 0
-    ? (allContentGroupsRaw ?? []).filter((cg) => selectedCGIds.includes(cg.id))
-    : (allContentGroupsRaw ?? []);
+  // Per-subject fallback: if a subject has any CG selected, show only those;
+  // if no CGs selected for that subject, show all CGs under it
+  const allContentGroups = (allContentGroupsRaw ?? []).filter((cg) => {
+    if (selectedCGIds.size === 0) return true;
+    const subjectHasSelections = (allContentGroupsRaw ?? []).some(
+      (other) => other.subject_id === cg.subject_id && selectedCGIds.has(other.id)
+    );
+    return subjectHasSelections ? selectedCGIds.has(cg.id) : true;
+  });
 
   const contentGroupIds = allContentGroups.map((cg) => cg.id);
   const { data: allUnits } = (await supabase
@@ -146,9 +151,13 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
     }> | null;
   };
 
+  // Filter records to only include units from visible content groups
+  const visibleUnitIds = new Set((allUnits ?? []).map((u) => u.id));
+  const allRecords = (records ?? []).filter((r) => visibleUnitIds.has(r.unit_id));
+
   function buildContentGroupProgress(subjectId: string): ContentGroupProgress[] {
     const subjectCGs = (allContentGroups ?? []).filter((cg) => cg.subject_id === subjectId);
-    const studentRecords = records ?? [];
+    const studentRecords = allRecords;
 
     return subjectCGs.map((cg) => {
       const cgUnits = (allUnits ?? []).filter((u) => u.content_group_id === cg.id);
@@ -264,7 +273,6 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
 
       {/* Calendar + Learning Pace */}
       {(() => {
-        const allRecords = records ?? [];
         const lessonDates = [...new Set(allRecords.map((r) => r.lesson_date))].sort();
 
         // Build date → records map

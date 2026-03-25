@@ -134,6 +134,23 @@ export interface Database {
           subject_id?: string;
         };
       };
+      student_content_groups: {
+        Row: {
+          id: string;
+          student_id: string;
+          content_group_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          content_group_id: string;
+        };
+        Update: {
+          student_id?: string;
+          content_group_id?: string;
+        };
+      };
       lesson_records: {
         Row: {
           id: string;

@@ -87,12 +87,17 @@ export async function GET(
     .from("student_content_groups")
     .select("content_group_id")
     .eq("student_id", id);
-  const selectedCGIds = (studentCGs ?? []).map((scg: { content_group_id: string }) => scg.content_group_id);
+  const selectedCGIds = new Set((studentCGs ?? []).map((scg: { content_group_id: string }) => scg.content_group_id));
 
-  // Filter: if student has content group selections, show only those; otherwise show all
-  const allContentGroups = selectedCGIds.length > 0
-    ? (allContentGroupsRaw ?? []).filter((cg: { id: string }) => selectedCGIds.includes(cg.id))
-    : (allContentGroupsRaw ?? []);
+  // Per-subject fallback: if a subject has any CG selected, show only those;
+  // if no CGs selected for that subject, show all CGs under it
+  const allContentGroups = (allContentGroupsRaw ?? []).filter((cg: { id: string; subject_id: string }) => {
+    if (selectedCGIds.size === 0) return true;
+    const subjectHasSelections = (allContentGroupsRaw ?? []).some(
+      (other: { id: string; subject_id: string }) => other.subject_id === cg.subject_id && selectedCGIds.has(other.id)
+    );
+    return subjectHasSelections ? selectedCGIds.has(cg.id) : true;
+  });
 
   const cgIds = allContentGroups.map((cg: { id: string }) => cg.id);
 
@@ -122,13 +127,15 @@ export async function GET(
   if (recError) {
     return NextResponse.json({ error: "Failed to load records" }, { status: 500 });
   }
-  const allRecords = records ?? [];
-
   // Build lookup maps
   interface UnitInfo { id: string; name: string; unit_number: number; content_group_id: string }
   interface CGInfo { id: string; subject_id: string; name: string; display_order: number }
 
   const unitMap = new Map((allUnits ?? []).map((u: UnitInfo) => [u.id, u]));
+
+  // Filter records to only include units from visible content groups
+  const visibleUnitIds = new Set((allUnits ?? []).map((u: UnitInfo) => u.id));
+  const allRecords = (records ?? []).filter((r: { unit_id: string }) => visibleUnitIds.has(r.unit_id));
   const cgMap = new Map((allContentGroups ?? []).map((cg: CGInfo) => [cg.id, cg]));
 
   // Pre-group records by subject_id
