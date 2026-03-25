@@ -297,9 +297,35 @@ export async function GET(
     const subjectRecords = recordsBySubject.get(subject.id) ?? [];
     if (subjectRecords.length === 0) continue;
 
+    // Group records by unit, keeping only the latest record per unit+step_type
+    // Then sort by content_group display_order → unit_number
+    const latestByUnitStep = new Map<string, typeof subjectRecords[0]>();
+    for (const record of subjectRecords) {
+      const key = `${record.unit_id}:${record.step_type}`;
+      const existing = latestByUnitStep.get(key);
+      if (!existing || record.lesson_date > existing.lesson_date) {
+        latestByUnitStep.set(key, record);
+      }
+    }
+    const dedupedRecords = [...latestByUnitStep.values()];
+
+    // Sort by CG display_order → unit_number → step order
+    const stepOrder: Record<string, number> = { learning: 0, step1: 1, step2: 2 };
+    dedupedRecords.sort((a, b) => {
+      const unitA = unitMap.get(a.unit_id);
+      const unitB = unitMap.get(b.unit_id);
+      const cgA = unitA ? cgMap.get(unitA.content_group_id) : null;
+      const cgB = unitB ? cgMap.get(unitB.content_group_id) : null;
+      const cgOrder = (cgA?.display_order ?? 0) - (cgB?.display_order ?? 0);
+      if (cgOrder !== 0) return cgOrder;
+      const unitOrder = (unitA?.unit_number ?? 0) - (unitB?.unit_number ?? 0);
+      if (unitOrder !== 0) return unitOrder;
+      return (stepOrder[a.step_type] ?? 0) - (stepOrder[b.step_type] ?? 0);
+    });
+
     // Table rows
     let rows = "";
-    for (const record of subjectRecords) {
+    for (const record of dedupedRecords) {
       const unit = unitMap.get(record.unit_id);
       const cg = unit ? cgMap.get(unit.content_group_id) : null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
