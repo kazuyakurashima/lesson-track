@@ -11,11 +11,19 @@ interface Subject {
   name: string;
 }
 
+interface ContentGroup {
+  id: string;
+  subject_id: string;
+  name: string;
+  display_order: number;
+}
+
 export default function NewStudentPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [contentGroups, setContentGroups] = useState<ContentGroup[]>([]);
 
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("中1");
@@ -23,21 +31,39 @@ export default function NewStudentPage() {
     useState<EnrollmentType>("ongoing");
   const [scheduleNote, setScheduleNote] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [selectedContentGroups, setSelectedContentGroups] = useState<string[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from("subjects")
-      .select("id, name")
-      .order("display_order")
-      .then(({ data }) => {
-        if (data) setSubjects(data);
-      });
+    Promise.all([
+      supabase.from("subjects").select("id, name").order("display_order"),
+      supabase.from("content_groups").select("id, subject_id, name, display_order").order("display_order"),
+    ]).then(([subjectsRes, cgsRes]) => {
+      if (subjectsRes.data) setSubjects(subjectsRes.data);
+      if (cgsRes.data) setContentGroups(cgsRes.data as ContentGroup[]);
+    });
   }, []);
 
-  function toggleSubject(id: string) {
-    setSelectedSubjects((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+  function toggleSubject(subjectId: string) {
+    setSelectedSubjects((prev) => {
+      if (prev.includes(subjectId)) {
+        const cgIds = contentGroups
+          .filter((cg) => cg.subject_id === subjectId)
+          .map((cg) => cg.id);
+        setSelectedContentGroups((prevCGs) =>
+          prevCGs.filter((id) => !cgIds.includes(id))
+        );
+        return prev.filter((s) => s !== subjectId);
+      }
+      return [...prev, subjectId];
+    });
+  }
+
+  function toggleContentGroup(cgId: string) {
+    setSelectedContentGroups((prev) =>
+      prev.includes(cgId)
+        ? prev.filter((id) => id !== cgId)
+        : [...prev, cgId]
     );
   }
 
@@ -89,6 +115,24 @@ export default function NewStudentPage() {
 
       if (subjectError) {
         setError("科目の紐付けに失敗しました");
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Link selected content groups
+    if (selectedContentGroups.length > 0) {
+      const { error: cgError } = await supabase
+        .from("student_content_groups")
+        .insert(
+          selectedContentGroups.map((cgId) => ({
+            student_id: student.id,
+            content_group_id: cgId,
+          }))
+        );
+
+      if (cgError) {
+        setError("コンテンツの紐付けに失敗しました");
         setLoading(false);
         return;
       }
@@ -220,6 +264,45 @@ export default function NewStudentPage() {
               ))}
             </div>
           </div>
+
+          {/* Content Groups per selected subject */}
+          {selectedSubjects.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">
+                使用コンテンツ
+              </label>
+              <div className="space-y-3">
+                {selectedSubjects.map((subjectId) => {
+                  const subject = subjects.find((s) => s.id === subjectId);
+                  const cgs = contentGroups.filter((cg) => cg.subject_id === subjectId);
+                  if (!subject || cgs.length === 0) return null;
+                  return (
+                    <div key={subjectId} className="bg-muted/50 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">
+                        {subject.name}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {cgs.map((cg) => (
+                          <button
+                            key={cg.id}
+                            type="button"
+                            onClick={() => toggleContentGroup(cg.id)}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                              selectedContentGroups.includes(cg.id)
+                                ? "bg-primary text-white"
+                                : "bg-white border border-border text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {cg.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {error && (

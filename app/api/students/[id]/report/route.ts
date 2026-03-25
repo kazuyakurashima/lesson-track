@@ -72,7 +72,7 @@ export async function GET(
     return NextResponse.json({ error: "No subjects found" }, { status: 404 });
   }
 
-  const { data: allContentGroups, error: cgError } = await supabase
+  const { data: allContentGroupsRaw, error: cgError } = await supabase
     .from("content_groups")
     .select("id, subject_id, name, display_order")
     .in("subject_id", subjectIds)
@@ -82,7 +82,19 @@ export async function GET(
     return NextResponse.json({ error: "Failed to load content groups" }, { status: 500 });
   }
 
-  const cgIds = (allContentGroups ?? []).map((cg: { id: string }) => cg.id);
+  // Load student's selected content groups
+  const { data: studentCGs } = await supabase
+    .from("student_content_groups")
+    .select("content_group_id")
+    .eq("student_id", id);
+  const selectedCGIds = (studentCGs ?? []).map((scg: { content_group_id: string }) => scg.content_group_id);
+
+  // Filter: if student has content group selections, show only those; otherwise show all
+  const allContentGroups = selectedCGIds.length > 0
+    ? (allContentGroupsRaw ?? []).filter((cg: { id: string }) => selectedCGIds.includes(cg.id))
+    : (allContentGroupsRaw ?? []);
+
+  const cgIds = allContentGroups.map((cg: { id: string }) => cg.id);
 
   const { data: allUnits, error: unitError } = await supabase
     .from("units")

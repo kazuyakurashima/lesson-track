@@ -91,7 +91,7 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
     .sort((a, b) => a.display_order - b.display_order);
 
   const subjectIds = subjects.map((s) => s.id);
-  const { data: allContentGroups } = (await supabase
+  const { data: allContentGroupsRaw } = (await supabase
     .from("content_groups")
     .select("id, subject_id, name, category, display_order")
     .in("subject_id", subjectIds.length > 0 ? subjectIds : ["_none_"])
@@ -105,7 +105,19 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
     }> | null;
   };
 
-  const contentGroupIds = (allContentGroups ?? []).map((cg) => cg.id);
+  // Load student's selected content groups
+  const { data: studentCGs } = await supabase
+    .from("student_content_groups")
+    .select("content_group_id")
+    .eq("student_id", id);
+  const selectedCGIds = (studentCGs ?? []).map((scg) => scg.content_group_id);
+
+  // Filter: if student has content group selections, show only those; otherwise show all
+  const allContentGroups = selectedCGIds.length > 0
+    ? (allContentGroupsRaw ?? []).filter((cg) => selectedCGIds.includes(cg.id))
+    : (allContentGroupsRaw ?? []);
+
+  const contentGroupIds = allContentGroups.map((cg) => cg.id);
   const { data: allUnits } = (await supabase
     .from("units")
     .select("id, name, unit_number, content_group_id")

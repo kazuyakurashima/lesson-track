@@ -11,6 +11,13 @@ interface Subject {
   name: string;
 }
 
+interface ContentGroup {
+  id: string;
+  subject_id: string;
+  name: string;
+  display_order: number;
+}
+
 interface StudentData {
   id: string;
   name: string;
@@ -31,6 +38,7 @@ export default function EditStudentPage({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [contentGroups, setContentGroups] = useState<ContentGroup[]>([]);
   const [student, setStudent] = useState<StudentData | null>(null);
 
   const [name, setName] = useState("");
@@ -39,6 +47,7 @@ export default function EditStudentPage({
     useState<EnrollmentType>("ongoing");
   const [scheduleNote, setScheduleNote] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [selectedContentGroups, setSelectedContentGroups] = useState<string[]>([]);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   useEffect(() => {
@@ -70,6 +79,13 @@ export default function EditStudentPage({
         .order("display_order");
       if (allSubjects) setSubjects(allSubjects);
 
+      // Load all content groups
+      const { data: allCGs } = await supabase
+        .from("content_groups")
+        .select("id, subject_id, name, display_order")
+        .order("display_order");
+      if (allCGs) setContentGroups(allCGs as ContentGroup[]);
+
       // Load student's current subjects
       const { data: studentSubjects } = await supabase
         .from("student_subjects")
@@ -79,6 +95,15 @@ export default function EditStudentPage({
         setSelectedSubjects(studentSubjects.map((ss) => ss.subject_id));
       }
 
+      // Load student's current content groups
+      const { data: studentCGs } = await supabase
+        .from("student_content_groups")
+        .select("content_group_id")
+        .eq("student_id", id);
+      if (studentCGs) {
+        setSelectedContentGroups(studentCGs.map((scg) => scg.content_group_id));
+      }
+
       setLoading(false);
     }
 
@@ -86,10 +111,26 @@ export default function EditStudentPage({
   }, [id, router]);
 
   function toggleSubject(subjectId: string) {
-    setSelectedSubjects((prev) =>
-      prev.includes(subjectId)
-        ? prev.filter((s) => s !== subjectId)
-        : [...prev, subjectId]
+    setSelectedSubjects((prev) => {
+      if (prev.includes(subjectId)) {
+        // Remove subject → also remove its content groups
+        const cgIds = contentGroups
+          .filter((cg) => cg.subject_id === subjectId)
+          .map((cg) => cg.id);
+        setSelectedContentGroups((prevCGs) =>
+          prevCGs.filter((id) => !cgIds.includes(id))
+        );
+        return prev.filter((s) => s !== subjectId);
+      }
+      return [...prev, subjectId];
+    });
+  }
+
+  function toggleContentGroup(cgId: string) {
+    setSelectedContentGroups((prev) =>
+      prev.includes(cgId)
+        ? prev.filter((id) => id !== cgId)
+        : [...prev, cgId]
     );
   }
 
@@ -133,6 +174,26 @@ export default function EditStudentPage({
 
       if (subjectError) {
         setError("科目の更新に失敗しました");
+        setSaving(false);
+        return;
+      }
+    }
+
+    // Update content groups: delete all, re-insert selected
+    await supabase.from("student_content_groups").delete().eq("student_id", id);
+
+    if (selectedContentGroups.length > 0) {
+      const { error: cgError } = await supabase
+        .from("student_content_groups")
+        .insert(
+          selectedContentGroups.map((cgId) => ({
+            student_id: id,
+            content_group_id: cgId,
+          }))
+        );
+
+      if (cgError) {
+        setError("コンテンツの更新に失敗しました");
         setSaving(false);
         return;
       }
@@ -321,6 +382,45 @@ export default function EditStudentPage({
               ))}
             </div>
           </div>
+
+          {/* Content Groups per selected subject */}
+          {selectedSubjects.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                使用コンテンツ
+              </label>
+              <div className="space-y-3">
+                {selectedSubjects.map((subjectId) => {
+                  const subject = subjects.find((s) => s.id === subjectId);
+                  const cgs = contentGroups.filter((cg) => cg.subject_id === subjectId);
+                  if (!subject || cgs.length === 0) return null;
+                  return (
+                    <div key={subjectId} className="bg-muted/50 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">
+                        {subject.name}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {cgs.map((cg) => (
+                          <button
+                            key={cg.id}
+                            type="button"
+                            onClick={() => toggleContentGroup(cg.id)}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                              selectedContentGroups.includes(cg.id)
+                                ? "bg-primary text-white"
+                                : "bg-white border border-border text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {cg.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {error && (
