@@ -513,11 +513,22 @@ export default function RecordPage() {
         setSelectedSubjectId(matchedSubject.id);
       }
 
-      // We need content groups for the matched subject
+      // Load content groups directly from DB for the matched subject
+      // (allContentGroups may not include this subject's CGs yet due to timing/filtering)
       const targetSubjectId = matchedSubject?.id ?? "";
-      const cgsForSubject = allContentGroups.filter(
+      let cgsForSubject: ContentGroup[] = allContentGroups.filter(
         (cg) => cg.subject_id === targetSubjectId
       );
+      if (cgsForSubject.length === 0 && targetSubjectId) {
+        const { data: freshCGs } = await supabase
+          .from("content_groups")
+          .select("id, subject_id, name, category, display_order")
+          .eq("subject_id", targetSubjectId)
+          .order("display_order");
+        if (freshCGs && freshCGs.length > 0) {
+          cgsForSubject = freshCGs as ContentGroup[];
+        }
+      }
 
       // --- Match content group (with unit-based disambiguation) ---
       let matchedCG = fuzzyMatch(
