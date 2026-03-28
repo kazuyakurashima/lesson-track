@@ -470,3 +470,83 @@ FROM (
   (49, '場合の数【発展】')
 ) AS u(unit_number, name)
 ON CONFLICT (content_group_id, unit_number) DO NOTHING;
+
+-- 11. 小学理科 > 小学4年 理科 (subject='小学理科', display_order=1) — 18 units
+INSERT INTO units (content_group_id, name, unit_number)
+SELECT cg.id, u.name, u.unit_number
+FROM (
+  SELECT cg.id FROM content_groups cg
+  JOIN subjects s ON s.id = cg.subject_id
+  WHERE s.name = '小学理科' AND cg.display_order = 1
+) cg,
+(VALUES
+  (1,  '季節と生き物①(春の動物と植物)'),
+  (2,  '季節と生き物②(夏の動物と植物)'),
+  (3,  '季節と生き物③(秋の動物と植物)'),
+  (4,  '季節と生き物④(冬の動物と植物)'),
+  (5,  '天気と気温'),
+  (6,  '電気のはたらき'),
+  (7,  '月や星の見え方①(夏の夜空)'),
+  (8,  '月や星の見え方②(月と星の位置の変化)'),
+  (9,  '月や星の見え方③(冬の夜空)'),
+  (10, 'とじこめた空気や水'),
+  (11, '人の体のつくりと運動'),
+  (12, '水のゆくえ①(水の流れとしみこみ)'),
+  (13, '水のゆくえ②(空気中の水)'),
+  (14, '実験用ガスこんろ、アルコールランプの使い方'),
+  (15, 'ものの体積と温度'),
+  (16, 'もののあたたまり方'),
+  (17, '水のすがた①(水を熱したとき)'),
+  (18, '水のすがた②(水を冷やしたとき、水の3つのすがた)')
+) AS u(unit_number, name)
+ON CONFLICT (content_group_id, unit_number) DO NOTHING;
+
+-- 12. 小学理科 > 小学5年 理科 (subject='小学理科', display_order=2) — 12 units
+INSERT INTO units (content_group_id, name, unit_number)
+SELECT cg.id, u.name, u.unit_number
+FROM (
+  SELECT cg.id FROM content_groups cg
+  JOIN subjects s ON s.id = cg.subject_id
+  WHERE s.name = '小学理科' AND cg.display_order = 2
+) cg,
+(VALUES
+  (1,  'けんび鏡の使い方'),
+  (2,  '種子の発芽と植物の成長'),
+  (3,  '花のつくりと実のでき方'),
+  (4,  'メダカのたんじょう'),
+  (5,  '人のたんじょう'),
+  (6,  '雲と天気'),
+  (7,  '台風と天気'),
+  (8,  '流れる水のはたらき'),
+  (9,  'もののとけ方'),
+  (10, 'とけたもののとり出し方'),
+  (11, 'ふりこの動き'),
+  (12, '電流と電磁石')
+) AS u(unit_number, name)
+ON CONFLICT (content_group_id, unit_number) DO NOTHING;
+
+-- 13. 小学理科 > 小学6年 理科 (subject='小学理科', display_order=3) — 14 units
+INSERT INTO units (content_group_id, name, unit_number)
+SELECT cg.id, u.name, u.unit_number
+FROM (
+  SELECT cg.id FROM content_groups cg
+  JOIN subjects s ON s.id = cg.subject_id
+  WHERE s.name = '小学理科' AND cg.display_order = 3
+) cg,
+(VALUES
+  (1,  'ものの燃え方と空気'),
+  (2,  '植物と日光'),
+  (3,  '植物と水'),
+  (4,  '消化のはたらき'),
+  (5,  '呼吸と血液のはたらき'),
+  (6,  '生物どうしのかかわり'),
+  (7,  '月の形と太陽'),
+  (8,  '大地のつくりと変化'),
+  (9,  '水溶液の性質'),
+  (10, '水溶液と金属'),
+  (11, 'てこのはたらき'),
+  (12, 'てこを利用した道具'),
+  (13, '電気の利用'),
+  (14, '生物と環境')
+) AS u(unit_number, name)
+ON CONFLICT (content_group_id, unit_number) DO NOTHING;

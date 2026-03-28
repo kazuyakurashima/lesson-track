@@ -142,7 +142,7 @@ export default function NewStudentPage() {
     router.refresh();
   }
 
-  const grades = ["中1", "中2", "中3"];
+  const grades = ["小4", "小5", "小6", "中1", "中2", "中3"];
   const enrollmentTypes: { value: EnrollmentType; label: string }[] = [
     { value: "ongoing", label: "継続受講" },
     { value: "spring_course", label: "春期講習" },

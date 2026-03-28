@@ -309,6 +309,7 @@ BEGIN
   INSERT INTO subjects (name, display_order) VALUES ('理科', 4) ON CONFLICT DO NOTHING;
   INSERT INTO subjects (name, display_order) VALUES ('社会', 5) ON CONFLICT DO NOTHING;
   INSERT INTO subjects (name, display_order) VALUES ('算数', 6) ON CONFLICT DO NOTHING;
+  INSERT INTO subjects (name, display_order) VALUES ('小学理科', 7) ON CONFLICT DO NOTHING;
 
   SELECT id INTO v_english_id FROM subjects WHERE name = '英語';
   SELECT id INTO v_math_id FROM subjects WHERE name = '数学';
@@ -326,6 +327,19 @@ BEGIN
     (v_math_id,     '2年[共通版]',           'academic',   '中2', 4),
     (v_japanese_id, '東京書籍1年 漢字',      'vocabulary', '中1', 1),
     (v_japanese_id, '東京書籍2年 漢字',      'vocabulary', '中2', 2)
+  ON CONFLICT (subject_id, display_order) DO NOTHING;
+
+  -- 小学理科 content groups
+  PERFORM (SELECT 1); -- force re-lookup after inserts
+  INSERT INTO content_groups (subject_id, name, category, grade, display_order)
+  SELECT s.id, cg.name, cg.category::content_category, cg.grade, cg.display_order
+  FROM subjects s,
+  (VALUES
+    ('小学4年 理科', 'academic', '小4', 1),
+    ('小学5年 理科', 'academic', '小5', 2),
+    ('小学6年 理科', 'academic', '小6', 3)
+  ) AS cg(name, category, grade, display_order)
+  WHERE s.name = '小学理科'
   ON CONFLICT (subject_id, display_order) DO NOTHING;
 END $$;
 
