@@ -566,6 +566,8 @@ export default function RecordPage() {
       }
 
       if (matchedCG) {
+        // Set contentGroups for display (useEffect is locked, so we must do it here)
+        setContentGroups(cgsForSubject);
         setSelectedContentGroupId(matchedCG.id);
 
         // Load units for matched CG and set them directly
