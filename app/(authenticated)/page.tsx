@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { enrollmentLabel, stepLabel } from "@/lib/constants";
 import Link from "next/link";
 import { PenSquare, ChevronRight, AlertTriangle, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,24 +135,6 @@ export default async function DashboardPage() {
       progressMap.set(student.id, { completed: completedUnitIds.size, total: totalUnits });
     }
   }
-
-  const enrollmentLabel = (type: string) => {
-    switch (type) {
-      case "spring_course": return "春期講習";
-      case "ongoing": return "継続";
-      case "trial": return "体験";
-      default: return type;
-    }
-  };
-
-  const stepLabel = (type: string) => {
-    switch (type) {
-      case "learning": return "L";
-      case "step1": return "S1";
-      case "step2": return "S2";
-      default: return type;
-    }
-  };
 
   return (
     <div className="space-y-8">

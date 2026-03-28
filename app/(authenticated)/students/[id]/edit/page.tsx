@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import type { EnrollmentType } from "@/lib/types/supabase";
+import { GRADE_OPTIONS } from "@/lib/constants";
 
 interface Subject {
   id: string;
@@ -237,7 +238,7 @@ export default function EditStudentPage({
     setError("");
   }
 
-  const grades = ["小4", "小5", "小6", "中1", "中2", "中3"];
+  const grades = GRADE_OPTIONS;
   const enrollmentTypes: { value: EnrollmentType; label: string }[] = [
     { value: "ongoing", label: "継続受講" },
     { value: "spring_course", label: "春期講習" },

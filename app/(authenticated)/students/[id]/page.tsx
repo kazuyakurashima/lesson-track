@@ -11,6 +11,7 @@ import {
   Pencil,
 } from "lucide-react";
 import type { ContentCategory } from "@/lib/types/supabase";
+import { enrollmentLabel, stepLabel } from "@/lib/constants";
 import ReportButton from "./report-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -209,24 +210,6 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
     });
   }
 
-  const enrollmentLabel = (type: string) => {
-    switch (type) {
-      case "spring_course": return "春期講習";
-      case "ongoing": return "継続受講";
-      case "trial": return "体験";
-      default: return type;
-    }
-  };
-
-  const stepLabel = (type: string) => {
-    switch (type) {
-      case "learning": return "L";
-      case "step1": return "S1";
-      case "step2": return "S2";
-      default: return type;
-    }
-  };
-
   const StatusIcon = ({ status }: { status: UnitStatus }) => {
     switch (status) {
       case "completed":
@@ -377,13 +360,6 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
           if (count >= 3) return "bg-primary/20 text-primary font-semibold";
           return "bg-primary/10 text-primary font-medium";
         }
-
-        const stepLabel = (t: string) => {
-          if (t === "learning") return "L";
-          if (t === "step1") return "S1";
-          if (t === "step2") return "S2";
-          return t;
-        };
 
         return (
           <div className="space-y-4">

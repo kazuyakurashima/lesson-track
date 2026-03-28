@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { stepLabel } from "@/lib/constants";
 
 export async function GET(
   request: Request,
@@ -149,13 +150,6 @@ export async function GET(
     if (!recordsBySubject.has(sid)) recordsBySubject.set(sid, []);
     recordsBySubject.get(sid)!.push(r);
   }
-
-  const stepLabel = (t: string) => {
-    if (t === "learning") return "ラーニング";
-    if (t === "step1") return "ステップ1";
-    if (t === "step2") return "ステップ2";
-    return t;
-  };
 
   const escapeHtml = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import type { StepType, ContentCategory } from "@/lib/types/supabase";
 import { todayJST } from "@/lib/date-utils";
+import { SCORE_PASS_THRESHOLD, AI_CONFIDENCE_HIGH, AI_CONFIDENCE_MINIMUM } from "@/lib/constants";
+import { fuzzyMatch } from "@/lib/fuzzy-match";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,119 +80,6 @@ const STEP_TYPE_OPTIONS: { value: StepType; label: string }[] = [
   { value: "step1", label: "ステップ1" },
   { value: "step2", label: "ステップ2" },
 ];
-
-/** Circled number mappings for normalization */
-const CIRCLED_TO_NUM: Record<string, string> = {
-  "①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5",
-  "⑥": "6", "⑦": "7", "⑧": "8", "⑨": "9", "⑩": "10",
-  "⑪": "11", "⑫": "12", "⑬": "13", "⑭": "14", "⑮": "15",
-  "⑯": "16", "⑰": "17", "⑱": "18", "⑲": "19", "⑳": "20",
-};
-
-/** Normalize a string for fuzzy matching (fullwidth→halfwidth, circled→digit, trim, lowercase). */
-function normalize(s: string): string {
-  let result = s
-    .normalize("NFKC") // fullwidth → halfwidth, etc.
-    .replace(/\u3000/g, " ") // fullwidth space
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-  // Convert circled numbers to regular digits for matching
-  for (const [circled, num] of Object.entries(CIRCLED_TO_NUM)) {
-    result = result.replaceAll(circled, num);
-  }
-  return result;
-}
-
-/**
- * Alias map: AI-returned names → DB content_group names.
- * Handles common print header patterns that don't exactly match DB names.
- */
-const CONTENT_GROUP_ALIASES: Record<string, string> = {
-  // English
-  "英文法1": "英文法",
-  "英文法１": "英文法",
-  "英文法 1": "英文法",
-  "英文法 １": "英文法",
-  "英文法入門": "英文法 入門",
-  // Math
-  "数学1年": "1年[共通版]",
-  "数学１年": "1年[共通版]",
-  "数学 1年": "1年[共通版]",
-  "数学 １年": "1年[共通版]",
-  "中1": "1年[共通版]",
-  "中学1年": "1年[共通版]",
-  "数学2年": "2年[共通版]",
-  "数学２年": "2年[共通版]",
-  "数学 2年": "2年[共通版]",
-  "数学 ２年": "2年[共通版]",
-  "中2": "2年[共通版]",
-  "中学2年": "2年[共通版]",
-  "1年まとめ": "1年のまとめ",
-  "1年の纏め": "1年のまとめ",
-  "2年まとめ": "2年のまとめ",
-  "2年の纏め": "2年のまとめ",
-  // Japanese
-  "東1年": "東京書籍1年 漢字",
-  "東１年": "東京書籍1年 漢字",
-  "東京書籍1年": "東京書籍1年 漢字",
-  "東京書籍１年": "東京書籍1年 漢字",
-  "東2年": "東京書籍2年 漢字",
-  "東２年": "東京書籍2年 漢字",
-  "東京書籍2年": "東京書籍2年 漢字",
-  "東京書籍２年": "東京書籍2年 漢字",
-};
-
-/** Apply alias mapping, then normalize */
-function resolveAlias(aiName: string): string {
-  const norm = normalize(aiName);
-  for (const [alias, target] of Object.entries(CONTENT_GROUP_ALIASES)) {
-    if (norm === normalize(alias)) return normalize(target);
-  }
-  return norm;
-}
-
-/** Fuzzy-match an AI-returned name against a list of DB records.
- *  Returns the best match or null. */
-function fuzzyMatch<T extends { name: string }>(
-  aiName: string | null,
-  candidates: T[],
-  tiebreaker: (a: T, b: T) => number,
-  useAlias = false
-): T | null {
-  if (!aiName || candidates.length === 0) return null;
-
-  const norm = useAlias ? resolveAlias(aiName) : normalize(aiName);
-
-  // 1. Exact match (after alias resolution)
-  const exact = candidates.find((c) => normalize(c.name) === norm);
-  if (exact) return exact;
-
-  // 2. Partial match — collect all candidates where one contains the other
-  const partials: { item: T; overlap: number; lenDiff: number }[] = [];
-  for (const c of candidates) {
-    const cn = normalize(c.name);
-    if (cn.includes(norm) || norm.includes(cn)) {
-      // overlap = how many chars of the longer string are covered
-      const overlap = Math.min(cn.length, norm.length);
-      // lenDiff = how close the candidate is to the AI string (lower = better)
-      const lenDiff = Math.abs(cn.length - norm.length);
-      partials.push({ item: c, overlap, lenDiff });
-    }
-  }
-
-  if (partials.length === 0) return null;
-
-  // 3. Prefer candidate closest in length to AI string (smallest lenDiff),
-  //    then longest overlap, then tiebreaker
-  partials.sort((a, b) => {
-    if (a.lenDiff !== b.lenDiff) return a.lenDiff - b.lenDiff;
-    if (b.overlap !== a.overlap) return b.overlap - a.overlap;
-    return tiebreaker(a.item, b.item);
-  });
-
-  return partials[0].item;
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -723,7 +612,7 @@ export default function RecordPage() {
       scoreNum !== null &&
       maxScoreNum !== null &&
       maxScoreNum > 0 &&
-      scoreNum / maxScoreNum >= 0.8
+      scoreNum / maxScoreNum >= SCORE_PASS_THRESHOLD
     ) {
       completionType = "passed";
     }
@@ -848,15 +737,15 @@ export default function RecordPage() {
   const shouldExpandManual =
     aiError ||
     (aiResult !== null &&
-      (aiResult.confidence < 0.5 ||
+      (aiResult.confidence < AI_CONFIDENCE_MINIMUM ||
         !aiResult.subject_name ||
         !aiResult.content_group_name ||
         !aiResult.unit_name));
 
   const showYellowWarning =
     aiResult !== null &&
-    aiResult.confidence >= 0.5 &&
-    aiResult.confidence < 0.7 &&
+    aiResult.confidence >= AI_CONFIDENCE_MINIMUM &&
+    aiResult.confidence < AI_CONFIDENCE_HIGH &&
     !shouldExpandManual;
 
   const currentContentGroupName = contentGroups.find(
@@ -1414,9 +1303,9 @@ export default function RecordPage() {
           {aiResult && (
             <div
               className={`rounded-xl border p-4 ${
-                aiResult.confidence >= 0.7
+                aiResult.confidence >= AI_CONFIDENCE_HIGH
                   ? "bg-primary/5 border-primary/20"
-                  : aiResult.confidence >= 0.5
+                  : aiResult.confidence >= AI_CONFIDENCE_MINIMUM
                   ? "bg-warning/5 border-warning/20"
                   : "bg-danger/5 border-danger/20"
               }`}
@@ -1429,9 +1318,9 @@ export default function RecordPage() {
                   <div className="flex-1 h-2 w-20 bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
-                        aiResult.confidence >= 0.7
+                        aiResult.confidence >= AI_CONFIDENCE_HIGH
                           ? "bg-success"
-                          : aiResult.confidence >= 0.5
+                          : aiResult.confidence >= AI_CONFIDENCE_MINIMUM
                           ? "bg-warning"
                           : "bg-danger"
                       }`}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { enrollmentLabel, stepLabel } from "@/lib/constants";
 import { ChevronRight, ArrowRight, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,24 +35,6 @@ interface RecordData {
   contentGroupName: string;
   instructor: string;
 }
-
-const enrollmentLabel = (type: string) => {
-  switch (type) {
-    case "spring_course": return "春期講習";
-    case "ongoing": return "継続";
-    case "trial": return "体験";
-    default: return type;
-  }
-};
-
-const stepLabel = (type: string) => {
-  switch (type) {
-    case "learning": return "L";
-    case "step1": return "S1";
-    case "step2": return "S2";
-    default: return type;
-  }
-};
 
 export function StudentListClient({
   students,
