@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 import {
   ArrowLeft,
@@ -12,62 +11,19 @@ import {
   AlertTriangle,
   Zap,
 } from "lucide-react";
-import type { StepType, ContentCategory } from "@/lib/types/supabase";
+import type { StepType } from "@/lib/types/supabase";
+import type {
+  Student,
+  ContentGroup,
+  Unit,
+  Recommendation,
+  Mode,
+} from "@/lib/types/lesson-record";
 import { todayJST } from "@/lib/date-utils";
 import { SCORE_PASS_THRESHOLD, AI_CONFIDENCE_HIGH, AI_CONFIDENCE_MINIMUM } from "@/lib/constants";
-import { fuzzyMatch } from "@/lib/fuzzy-match";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface Student {
-  id: string;
-  name: string;
-  grade: string;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  display_order: number;
-}
-
-interface ContentGroup {
-  id: string;
-  subject_id: string;
-  name: string;
-  category: ContentCategory;
-  display_order: number;
-}
-
-interface Unit {
-  id: string;
-  name: string;
-  unit_number: number;
-  content_group_id: string;
-}
-
-interface Recommendation {
-  unit: Unit;
-  stepType: StepType;
-  reason: string;
-  contentGroupName: string;
-  contentGroupId: string;
-  subjectId: string;
-}
-
-interface AiAnalyzeResult {
-  subject_name: string | null;
-  content_group_name: string | null;
-  unit_name: string | null;
-  unit_number: number | null;
-  step_type: StepType | null;
-  score: number | null;
-  max_score: number | null;
-  confidence: number;
-  raw_response?: string;
-}
+import { useStudentData } from "@/hooks/use-student-data";
+import { useAiAnalysis } from "@/hooks/use-ai-analysis";
+import { useRecommendations } from "@/hooks/use-recommendations";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -87,22 +43,17 @@ const STEP_TYPE_OPTIONS: { value: StepType; label: string }[] = [
 
 export default function RecordPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
 
   // ---- Mode ---------------------------------------------------------------
-  type Mode = "photo" | "manual";
   const [mode, setMode] = useState<Mode>("photo");
 
   // ---- Wizard step (photo mode) ------------------------------------------
   const [currentStep, setCurrentStep] = useState(0);
 
   // ---- Student (shared) ---------------------------------------------------
-  const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-  // ---- Master data --------------------------------------------------------
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [allContentGroups, setAllContentGroups] = useState<ContentGroup[]>([]);
+  // ---- Master data (owned here, populated by hooks) -----------------------
   const [contentGroups, setContentGroups] = useState<ContentGroup[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
 
@@ -113,21 +64,7 @@ export default function RecordPage() {
   const [selectedStepType, setSelectedStepType] = useState<StepType>("step1");
   const [lessonDate, setLessonDate] = useState(todayJST);
 
-  // ---- Recommendations ----------------------------------------------------
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-
-  // ---- AI lock: prevents useEffects from resetting AI-applied values ------
-  const aiLockRef = useRef(false);
-
-  // ---- Photo / AI ---------------------------------------------------------
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<AiAnalyzeResult | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiError, setAiError] = useState(false);
-  const [aiErrorMsg, setAiErrorMsg] = useState("");
-
-  // ---- Confirm / Save -----------------------------------------------------
+  // ---- Score / Save -------------------------------------------------------
   const [score, setScore] = useState("");
   const [maxScore, setMaxScore] = useState("100");
   const [comment, setComment] = useState("");
@@ -136,447 +73,54 @@ export default function RecordPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // =========================================================================
-  // Data loading
+  // Custom hooks
   // =========================================================================
 
-  // Load students
-  useEffect(() => {
-    supabase
-      .from("students")
-      .select("id, name, grade")
-      .eq("is_active", true)
-      .order("name")
-      .then(({ data }) => {
-        if (data) setStudents(data as Student[]);
-      });
-  }, [supabase]);
-
-  // Load subjects when student selected
-  useEffect(() => {
-    if (!selectedStudent) return;
-
-    supabase
-      .from("student_subjects")
-      .select("subject_id, subjects(id, name, display_order)")
-      .eq("student_id", selectedStudent.id)
-      .then(({ data }) => {
-        if (data) {
-          const rows = data as unknown as Array<{ subjects: Subject }>;
-          const subs = rows
-            .map((d) => d.subjects)
-            .sort((a, b) => a.display_order - b.display_order);
-          setSubjects(subs);
-        }
-      });
-  }, [selectedStudent, supabase]);
-
-  // Load content groups for the student's subjects, filtered by student_content_groups if set
-  useEffect(() => {
-    if (subjects.length === 0 || !selectedStudent) {
-      setAllContentGroups([]);
-      return;
-    }
-    const subjectIds = subjects.map((s) => s.id);
-    Promise.all([
-      supabase
-        .from("content_groups")
-        .select("id, subject_id, name, category, display_order")
-        .in("subject_id", subjectIds)
-        .order("display_order"),
-      supabase
-        .from("student_content_groups")
-        .select("content_group_id")
-        .eq("student_id", selectedStudent.id),
-    ]).then(([cgRes, scgRes]) => {
-      const allCGs = (cgRes.data ?? []) as ContentGroup[];
-      const selectedIds = new Set((scgRes.data ?? []).map((s: { content_group_id: string }) => s.content_group_id));
-      // Per-subject fallback
-      if (selectedIds.size === 0) {
-        setAllContentGroups(allCGs);
-      } else {
-        const filtered = allCGs.filter((cg) => {
-          const subjectHasSelections = allCGs.some(
-            (other) => other.subject_id === cg.subject_id && selectedIds.has(other.id)
-          );
-          return subjectHasSelections ? selectedIds.has(cg.id) : true;
-        });
-        setAllContentGroups(filtered);
-      }
-    });
-  }, [subjects, selectedStudent, supabase]);
-
-  // Filter content groups when subject changes
-  useEffect(() => {
-    if (aiLockRef.current) return; // Don't interfere with AI result
-    if (!selectedSubjectId) {
-      setContentGroups([]);
-      return;
-    }
-    const filtered = allContentGroups.filter(
-      (cg) => cg.subject_id === selectedSubjectId
+  const { supabase, aiLockRef, students, subjects, allContentGroups } =
+    useStudentData(
+      selectedStudent,
+      selectedSubjectId,
+      selectedContentGroupId,
+      setContentGroups,
+      setSelectedContentGroupId,
+      setUnits,
     );
-    setContentGroups(filtered);
-    if (filtered.length > 0 && !filtered.some((cg) => cg.id === selectedContentGroupId)) {
-      setSelectedContentGroupId(filtered[0].id);
-    } else if (filtered.length === 0) {
-      setSelectedContentGroupId("");
-    }
-  }, [selectedSubjectId, allContentGroups, selectedContentGroupId]);
 
-  // Load units when content group changes
-  useEffect(() => {
-    if (aiLockRef.current) return; // AI already loaded units directly
-    if (!selectedContentGroupId) {
-      setUnits([]);
-      return;
-    }
-    supabase
-      .from("units")
-      .select("id, name, unit_number, content_group_id")
-      .eq("content_group_id", selectedContentGroupId)
-      .order("unit_number")
-      .then(({ data }) => {
-        if (data) setUnits(data as Unit[]);
-      });
-  }, [selectedContentGroupId, supabase]);
-
-  // =========================================================================
-  // Recommendations
-  // =========================================================================
-
-  const loadRecommendations = useCallback(async () => {
-    if (!selectedStudent || subjects.length === 0) return;
-
-    const subjectIds = subjects.map((s) => s.id);
-    const { data: cgs } = await supabase
-      .from("content_groups")
-      .select("id, subject_id, name, category, display_order")
-      .in("subject_id", subjectIds)
-      .order("display_order");
-
-    if (!cgs) return;
-
-    const { data: records } = (await supabase
-      .from("lesson_records")
-      .select("unit_id, step_type, score, max_score, completion_type")
-      .eq("student_id", selectedStudent.id)) as {
-      data: Array<{
-        unit_id: string;
-        step_type: string;
-        score: number | null;
-        max_score: number | null;
-        completion_type: string | null;
-      }> | null;
-    };
-
-    if (!records) return;
-
-    // Batch-load ALL units for the student's content groups (avoids N+1)
-    const cgIds = (cgs as ContentGroup[]).map((cg) => cg.id);
-    const { data: allCgUnits } = (await supabase
-      .from("units")
-      .select("id, name, unit_number, content_group_id")
-      .in("content_group_id", cgIds)
-      .order("unit_number")) as { data: Unit[] | null };
-
-    if (!allCgUnits) return;
-
-    const recs: Recommendation[] = [];
-
-    for (const cg of cgs as ContentGroup[]) {
-      const cgUnits = allCgUnits.filter((u) => u.content_group_id === cg.id);
-
-      for (const unit of cgUnits) {
-        const unitRecords = records.filter((r) => r.unit_id === unit.id);
-        const hasLearning = unitRecords.some(
-          (r) => r.step_type === "learning"
-        );
-        const hasStep1 = unitRecords.some((r) => r.step_type === "step1");
-        const step2Records = unitRecords.filter(
-          (r) => r.step_type === "step2"
-        );
-        const hasPassedStep2 = unitRecords.some(
-          (r) =>
-            r.completion_type === "passed" ||
-            r.completion_type === "step1_perfect"
-        );
-
-        if (hasPassedStep2) continue;
-
-        // Retest needed
-        if (step2Records.length > 0) {
-          const latest = step2Records[step2Records.length - 1];
-          if (!latest.completion_type) {
-            recs.push({
-              unit,
-              stepType: "step2",
-              reason: `前回 ${latest.score}/${latest.max_score} → 再テスト`,
-              contentGroupName: cg.name,
-              contentGroupId: cg.id,
-              subjectId: cg.subject_id,
-            });
-            break;
-          }
-        }
-
-        // Vocabulary: learning done, step2 not done
-        if (
-          cg.category === "vocabulary" &&
-          hasLearning &&
-          step2Records.length === 0
-        ) {
-          recs.push({
-            unit,
-            stepType: "step2",
-            reason: "ラーニング済み → ステップ2テスト",
-            contentGroupName: cg.name,
-            contentGroupId: cg.id,
-            subjectId: cg.subject_id,
-          });
-          break;
-        }
-
-        // Academic: step1 done, step2 not done
-        if (
-          cg.category === "academic" &&
-          hasStep1 &&
-          step2Records.length === 0
-        ) {
-          recs.push({
-            unit,
-            stepType: "step2",
-            reason: "ステップ1済み → ステップ2",
-            contentGroupName: cg.name,
-            contentGroupId: cg.id,
-            subjectId: cg.subject_id,
-          });
-          break;
-        }
-
-        // Not started yet
-        if (unitRecords.length === 0) {
-          recs.push({
-            unit,
-            stepType: "learning",
-            reason: "次の単元",
-            contentGroupName: cg.name,
-            contentGroupId: cg.id,
-            subjectId: cg.subject_id,
-          });
-          break;
-        }
-      }
-    }
-
-    setRecommendations(recs);
-  }, [selectedStudent, subjects, supabase]);
-
-  useEffect(() => {
-    loadRecommendations();
-  }, [loadRecommendations]);
-
-  // =========================================================================
-  // AI Analysis & Matching
-  // =========================================================================
-
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImageFile(file);
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(URL.createObjectURL(file));
-  }
-
-  /** Match AI result against DB records and populate selections. */
-  const applyAiResult = useCallback(
-    async (result: AiAnalyzeResult) => {
-      // Lock to prevent useEffects from overwriting AI-set values
-      aiLockRef.current = true;
-      // --- Match subject ---
-      const matchedSubject = fuzzyMatch(
-        result.subject_name,
-        subjects,
-        (a, b) => a.display_order - b.display_order
-      );
-      if (matchedSubject) {
-        setSelectedSubjectId(matchedSubject.id);
-      }
-
-      // Load content groups directly from DB for the matched subject
-      // (allContentGroups may not include this subject's CGs yet due to timing/filtering)
-      const targetSubjectId = matchedSubject?.id ?? "";
-      let cgsForSubject: ContentGroup[] = allContentGroups.filter(
-        (cg) => cg.subject_id === targetSubjectId
-      );
-      if (cgsForSubject.length === 0 && targetSubjectId) {
-        const { data: freshCGs } = await supabase
-          .from("content_groups")
-          .select("id, subject_id, name, category, display_order")
-          .eq("subject_id", targetSubjectId)
-          .order("display_order");
-        if (freshCGs && freshCGs.length > 0) {
-          cgsForSubject = freshCGs as ContentGroup[];
-        }
-      }
-
-      // --- Match content group (with unit-based disambiguation) ---
-      let matchedCG = fuzzyMatch(
-        result.content_group_name,
-        cgsForSubject,
-        (a, b) => a.display_order - b.display_order,
-        true // use alias mapping for content group names
-      );
-
-      // If we have a unit name, try to find which CG actually contains it.
-      // This handles cases like AI returning "英文法" when the unit belongs to "英文法 入門".
-      if (result.unit_name && cgsForSubject.length > 0) {
-        const cgIds = cgsForSubject.map((cg) => cg.id);
-        const { data: allCgUnits } = await supabase
-          .from("units")
-          .select("id, name, unit_number, content_group_id")
-          .in("content_group_id", cgIds)
-          .order("unit_number");
-
-        if (allCgUnits && allCgUnits.length > 0) {
-          // Try to find the unit across all CGs for this subject
-          let unitMatch = fuzzyMatch(
-            result.unit_name,
-            allCgUnits as Unit[],
-            (a, b) => a.unit_number - b.unit_number
-          );
-
-          // Fallback: if name match failed but we have unit_number + matched CG,
-          // try matching by number within the already-matched CG
-          if (!unitMatch && result.unit_number && matchedCG) {
-            unitMatch = (allCgUnits as Unit[]).find(
-              (u) => u.content_group_id === matchedCG!.id && u.unit_number === result.unit_number
-            ) ?? null;
-          }
-
-          if (unitMatch) {
-            // Use the CG that actually contains this unit
-            const correctCG = cgsForSubject.find(
-              (cg) => cg.id === unitMatch!.content_group_id
-            );
-            if (correctCG) {
-              matchedCG = correctCG;
-            }
-          }
-        }
-      }
-
-      if (matchedCG) {
-        // Set contentGroups for display (useEffect is locked, so we must do it here)
-        setContentGroups(cgsForSubject);
-        setSelectedContentGroupId(matchedCG.id);
-
-        // Load units for matched CG and set them directly
-        // (the useEffect may race or reset, so we must set units here)
-        const { data: cgUnits } = await supabase
-          .from("units")
-          .select("id, name, unit_number, content_group_id")
-          .eq("content_group_id", matchedCG.id)
-          .order("unit_number");
-
-        if (cgUnits) {
-          setUnits(cgUnits as Unit[]);
-          let matchedUnit = fuzzyMatch(
-            result.unit_name,
-            cgUnits as Unit[],
-            (a, b) => a.unit_number - b.unit_number
-          );
-          // Fallback: match by unit_number if name match failed
-          if (!matchedUnit && result.unit_number) {
-            matchedUnit = (cgUnits as Unit[]).find(
-              (u) => u.unit_number === result.unit_number
-            ) ?? null;
-          }
-          if (matchedUnit) {
-            setSelectedUnit(matchedUnit);
-          }
-        }
-      }
-
-      // --- Step type ---
-      if (result.step_type) {
-        setSelectedStepType(result.step_type);
-      }
-
-      // --- Score ---
-      if (result.score !== null) {
-        setScore(String(result.score));
-      }
-      if (result.max_score !== null) {
-        setMaxScore(String(result.max_score));
-      }
-
-      // Release lock after effects have settled
-      setTimeout(() => { aiLockRef.current = false; }, 500);
-    },
-    [subjects, allContentGroups, supabase]
+  const { recommendations, loadRecommendations } = useRecommendations(
+    selectedStudent,
+    subjects,
+    supabase,
   );
 
-  /** Apply recommendation values as fallback when AI returns null for all fields. */
-  const applyRecommendationFallback = useCallback(() => {
-    if (recommendations.length === 0) return;
-    const rec = recommendations[0];
-    setSelectedSubjectId(rec.subjectId);
-    setSelectedContentGroupId(rec.contentGroupId);
-    setSelectedUnit(rec.unit);
-    setSelectedStepType(rec.stepType);
-  }, [recommendations]);
-
-  async function analyzeImage() {
-    if (!imageFile) return;
-    setAnalyzing(true);
-    setAiError(false);
-    setAiErrorMsg("");
-    setAiResult(null);
-
-    const formData = new FormData();
-    formData.append("image", imageFile);
-
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        console.error("Analyze API error:", res.status, errBody);
-        throw new Error(errBody.debug || errBody.error || "API error");
-      }
-
-      const data: AiAnalyzeResult = await res.json();
-      setAiResult(data);
-
-      // Check if AI returned anything useful
-      const hasAnyField =
-        data.subject_name ||
-        data.content_group_name ||
-        data.unit_name ||
-        data.step_type ||
-        data.score !== null;
-
-      if (hasAnyField) {
-        await applyAiResult(data);
-      } else {
-        // All null — use recommendations as fallback
-        applyRecommendationFallback();
-      }
-
-      // Move to confirmation step
-      setCurrentStep(2);
-    } catch (err) {
-      setAiError(true);
-      setAiErrorMsg(err instanceof Error ? err.message : "Unknown error");
-      applyRecommendationFallback();
-      setCurrentStep(2);
-    } finally {
-      setAnalyzing(false);
-    }
-  }
+  const {
+    imageFile,
+    setImageFile,
+    imagePreview,
+    setImagePreview,
+    aiResult,
+    setAiResult,
+    analyzing,
+    aiError,
+    setAiError,
+    aiErrorMsg,
+    handleImageChange,
+    analyzeImage,
+  } = useAiAnalysis({
+    supabase,
+    aiLockRef,
+    subjects,
+    allContentGroups,
+    recommendations,
+    setSelectedSubjectId,
+    setContentGroups,
+    setSelectedContentGroupId,
+    setUnits,
+    setSelectedUnit,
+    setSelectedStepType,
+    setScore,
+    setMaxScore,
+    setCurrentStep,
+  });
 
   // =========================================================================
   // Save
@@ -733,7 +277,6 @@ export default function RecordPage() {
   // Derived state
   // =========================================================================
 
-  /** Whether the confirmation screen should show expanded manual selection UI */
   const shouldExpandManual =
     aiError ||
     (aiResult !== null &&
