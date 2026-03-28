@@ -323,12 +323,17 @@ export default function RecordPage() {
       (cg) => cg.subject_id === selectedSubjectId
     );
     setContentGroups(filtered);
+    // Only auto-select first CG if current selection is not valid AND units are not already loaded
+    // (prevents overwriting AI analysis results)
     if (filtered.length > 0 && !filtered.some((cg) => cg.id === selectedContentGroupId)) {
-      setSelectedContentGroupId(filtered[0].id);
+      // If units are already loaded for the current CG (e.g. from AI analysis), don't reset
+      if (units.length === 0) {
+        setSelectedContentGroupId(filtered[0].id);
+      }
     } else if (filtered.length === 0) {
       setSelectedContentGroupId("");
     }
-  }, [selectedSubjectId, allContentGroups, selectedContentGroupId]);
+  }, [selectedSubjectId, allContentGroups, selectedContentGroupId, units.length]);
 
   // Load units when content group changes
   useEffect(() => {
@@ -561,7 +566,8 @@ export default function RecordPage() {
       if (matchedCG) {
         setSelectedContentGroupId(matchedCG.id);
 
-        // Load units for matched CG
+        // Load units for matched CG and set them directly
+        // (the useEffect may race or reset, so we must set units here)
         const { data: cgUnits } = await supabase
           .from("units")
           .select("id, name, unit_number, content_group_id")
@@ -569,6 +575,7 @@ export default function RecordPage() {
           .order("unit_number");
 
         if (cgUnits) {
+          setUnits(cgUnits as Unit[]);
           let matchedUnit = fuzzyMatch(
             result.unit_name,
             cgUnits as Unit[],
