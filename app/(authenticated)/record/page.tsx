@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
@@ -227,6 +227,9 @@ export default function RecordPage() {
   // ---- Recommendations ----------------------------------------------------
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
+  // ---- AI lock: prevents useEffects from resetting AI-applied values ------
+  const aiLockRef = useRef(false);
+
   // ---- Photo / AI ---------------------------------------------------------
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -315,6 +318,7 @@ export default function RecordPage() {
 
   // Filter content groups when subject changes
   useEffect(() => {
+    if (aiLockRef.current) return; // Don't interfere with AI result
     if (!selectedSubjectId) {
       setContentGroups([]);
       return;
@@ -323,20 +327,16 @@ export default function RecordPage() {
       (cg) => cg.subject_id === selectedSubjectId
     );
     setContentGroups(filtered);
-    // Only auto-select first CG if current selection is not valid AND units are not already loaded
-    // (prevents overwriting AI analysis results)
     if (filtered.length > 0 && !filtered.some((cg) => cg.id === selectedContentGroupId)) {
-      // If units are already loaded for the current CG (e.g. from AI analysis), don't reset
-      if (units.length === 0) {
-        setSelectedContentGroupId(filtered[0].id);
-      }
+      setSelectedContentGroupId(filtered[0].id);
     } else if (filtered.length === 0) {
       setSelectedContentGroupId("");
     }
-  }, [selectedSubjectId, allContentGroups, selectedContentGroupId, units.length]);
+  }, [selectedSubjectId, allContentGroups, selectedContentGroupId]);
 
   // Load units when content group changes
   useEffect(() => {
+    if (aiLockRef.current) return; // AI already loaded units directly
     if (!selectedContentGroupId) {
       setUnits([]);
       return;
@@ -501,6 +501,8 @@ export default function RecordPage() {
   /** Match AI result against DB records and populate selections. */
   const applyAiResult = useCallback(
     async (result: AiAnalyzeResult) => {
+      // Lock to prevent useEffects from overwriting AI-set values
+      aiLockRef.current = true;
       // --- Match subject ---
       const matchedSubject = fuzzyMatch(
         result.subject_name,
@@ -605,6 +607,9 @@ export default function RecordPage() {
       if (result.max_score !== null) {
         setMaxScore(String(result.max_score));
       }
+
+      // Release lock after effects have settled
+      setTimeout(() => { aiLockRef.current = false; }, 500);
     },
     [subjects, allContentGroups, supabase]
   );
