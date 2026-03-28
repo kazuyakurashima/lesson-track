@@ -471,7 +471,7 @@ FROM (
 ) AS u(unit_number, name)
 ON CONFLICT (content_group_id, unit_number) DO NOTHING;
 
--- 11. 小学理科 > 小学4年 理科 (subject='小学理科', display_order=1) — 18 units
+-- 11. 理科 > 小学4年 理科 (subject='理科', display_order=1) — 18 units
 INSERT INTO units (content_group_id, name, unit_number)
 SELECT cg.id, u.name, u.unit_number
 FROM (
@@ -501,7 +501,7 @@ FROM (
 ) AS u(unit_number, name)
 ON CONFLICT (content_group_id, unit_number) DO NOTHING;
 
--- 12. 小学理科 > 小学5年 理科 (subject='小学理科', display_order=2) — 12 units
+-- 12. 理科 > 小学5年 理科 (subject='理科', display_order=2) — 12 units
 INSERT INTO units (content_group_id, name, unit_number)
 SELECT cg.id, u.name, u.unit_number
 FROM (
@@ -525,7 +525,7 @@ FROM (
 ) AS u(unit_number, name)
 ON CONFLICT (content_group_id, unit_number) DO NOTHING;
 
--- 13. 小学理科 > 小学6年 理科 (subject='小学理科', display_order=3) — 14 units
+-- 13. 理科 > 小学6年 理科 (subject='理科', display_order=3) — 14 units
 INSERT INTO units (content_group_id, name, unit_number)
 SELECT cg.id, u.name, u.unit_number
 FROM (
