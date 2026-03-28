@@ -915,6 +915,9 @@ export default function RecordPage() {
         )}
 
         {/* Content group select */}
+        {selectedSubjectId && contentGroups.length === 0 && (
+          <p className="text-xs text-text-muted">この科目には教材が未登録です</p>
+        )}
         {contentGroups.length > 0 && (
           <div>
             <label className="block text-sm font-medium text-text mb-1.5">

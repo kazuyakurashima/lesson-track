@@ -477,7 +477,7 @@ SELECT cg.id, u.name, u.unit_number
 FROM (
   SELECT cg.id FROM content_groups cg
   JOIN subjects s ON s.id = cg.subject_id
-  WHERE s.name = '小学理科' AND cg.display_order = 1
+  WHERE s.name = '理科' AND cg.display_order = 1
 ) cg,
 (VALUES
   (1,  '季節と生き物①(春の動物と植物)'),
@@ -507,7 +507,7 @@ SELECT cg.id, u.name, u.unit_number
 FROM (
   SELECT cg.id FROM content_groups cg
   JOIN subjects s ON s.id = cg.subject_id
-  WHERE s.name = '小学理科' AND cg.display_order = 2
+  WHERE s.name = '理科' AND cg.display_order = 2
 ) cg,
 (VALUES
   (1,  'けんび鏡の使い方'),
@@ -531,7 +531,7 @@ SELECT cg.id, u.name, u.unit_number
 FROM (
   SELECT cg.id FROM content_groups cg
   JOIN subjects s ON s.id = cg.subject_id
-  WHERE s.name = '小学理科' AND cg.display_order = 3
+  WHERE s.name = '理科' AND cg.display_order = 3
 ) cg,
 (VALUES
   (1,  'ものの燃え方と空気'),
