@@ -550,3 +550,77 @@ FROM (
   (14, '生物と環境')
 ) AS u(unit_number, name)
 ON CONFLICT (content_group_id, unit_number) DO NOTHING;
+
+-- 14. 理科 > 理科1年 (subject='理科', display_order=4) — 25 units
+INSERT INTO units (content_group_id, name, unit_number)
+SELECT cg.id, u.name, u.unit_number
+FROM (
+  SELECT cg.id FROM content_groups cg
+  JOIN subjects s ON s.id = cg.subject_id
+  WHERE s.name = '理科' AND cg.display_order = 4
+) cg,
+(VALUES
+  (1,  '光の反射・屈折'),
+  (2,  'レンズ'),
+  (3,  '音'),
+  (4,  '力のはたらき、力の大きさとばね'),
+  (5,  '力の表し方、重さと質量'),
+  (6,  '力のつり合い'),
+  (7,  '実験の基本操作'),
+  (8,  '密度'),
+  (9,  '気体'),
+  (10, '水溶液・濃度'),
+  (11, '溶解度'),
+  (12, '状態変化'),
+  (13, '蒸留'),
+  (14, '物質の加熱と変化'),
+  (15, '身近な生物の観察'),
+  (16, '顕微鏡'),
+  (17, '花のつくりとはたらき'),
+  (18, '被子植物の根と葉のようす'),
+  (19, '種子植物の分類'),
+  (20, '胞子でふえる植物、植物の分類'),
+  (21, 'セキツイ動物'),
+  (22, '無セキツイ動物'),
+  (23, '火山・火成岩'),
+  (24, '地震'),
+  (25, '堆積岩と地層')
+) AS u(unit_number, name)
+ON CONFLICT (content_group_id, unit_number) DO NOTHING;
+
+-- 15. 理科 > 入門 1年 (subject='理科', display_order=5) — 25 units
+INSERT INTO units (content_group_id, name, unit_number)
+SELECT cg.id, u.name, u.unit_number
+FROM (
+  SELECT cg.id FROM content_groups cg
+  JOIN subjects s ON s.id = cg.subject_id
+  WHERE s.name = '理科' AND cg.display_order = 5
+) cg,
+(VALUES
+  (1,  '光の反射・屈折'),
+  (2,  'レンズ'),
+  (3,  '音'),
+  (4,  '力のはたらき、力の大きさとばね'),
+  (5,  '力の表し方、重さと質量'),
+  (6,  '力のつり合い'),
+  (7,  '実験の基本操作'),
+  (8,  '物質の性質'),
+  (9,  '密度'),
+  (10, '気体'),
+  (11, '水溶液・濃度'),
+  (12, '溶解度'),
+  (13, '状態変化'),
+  (14, '蒸留'),
+  (15, '身近な生物の観察'),
+  (16, '顕微鏡'),
+  (17, '花のつくりとはたらき'),
+  (18, '被子植物の根と葉のようす'),
+  (19, '種子植物の分類'),
+  (20, '胞子でふえる植物、植物の分類'),
+  (21, 'セキツイ動物'),
+  (22, '無セキツイ動物'),
+  (23, '火山,火成岩'),
+  (24, '地震'),
+  (25, '堆積岩と地層')
+) AS u(unit_number, name)
+ON CONFLICT (content_group_id, unit_number) DO NOTHING;

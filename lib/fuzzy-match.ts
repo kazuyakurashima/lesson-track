@@ -56,6 +56,12 @@ export const CONTENT_GROUP_ALIASES: Record<string, string> = {
   "東２年": "東京書籍2年 漢字",
   "東京書籍2年": "東京書籍2年 漢字",
   "東京書籍２年": "東京書籍2年 漢字",
+  // Science
+  "入門1年": "入門 1年",
+  "入門 １年": "入門 1年",
+  "入門１年": "入門 1年",
+  "理科 1年": "理科1年",
+  "理科 １年": "理科1年",
 };
 
 /** Apply alias mapping, then normalize */

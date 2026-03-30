@@ -330,7 +330,9 @@ BEGIN
     (v_japanese_id, '東京書籍2年 漢字',      'vocabulary', '中2', 2),
     (v_science_id,  '小学4年 理科',          'academic',   '小4', 1),
     (v_science_id,  '小学5年 理科',          'academic',   '小5', 2),
-    (v_science_id,  '小学6年 理科',          'academic',   '小6', 3)
+    (v_science_id,  '小学6年 理科',          'academic',   '小6', 3),
+    (v_science_id,  '理科1年',              'academic',   '中1', 4),
+    (v_science_id,  '入門 1年',             'academic',   '中1', 5)
   ON CONFLICT (subject_id, display_order) DO NOTHING;
 END $$;
 
