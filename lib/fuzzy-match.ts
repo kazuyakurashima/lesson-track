@@ -5,7 +5,7 @@
 
 import { CIRCLED_TO_NUM } from "./constants";
 
-/** Normalize a string for fuzzy matching (fullwidth→halfwidth, circled→digit, trim, lowercase). */
+/** Normalize a string for fuzzy matching (fullwidth→halfwidth, circled→digit, symbols, trim, lowercase). */
 export function normalize(s: string): string {
   let result = s
     .normalize("NFKC")
@@ -13,9 +13,12 @@ export function normalize(s: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+  // Convert circled numbers to regular digits
   for (const [circled, num] of Object.entries(CIRCLED_TO_NUM)) {
     result = result.replaceAll(circled, num);
   }
+  // Normalize common punctuation variants (・↔,↔、↔/)
+  result = result.replace(/[・、，,/／]/g, ",");
   return result;
 }
 
