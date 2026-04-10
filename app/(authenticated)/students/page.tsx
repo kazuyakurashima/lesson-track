@@ -34,40 +34,6 @@ export default async function StudentsPage() {
     }> | null;
   };
 
-  // Get recent records for drawer preview
-  const { data: recentRecords } = (await supabase
-    .from("lesson_records")
-    .select(
-      `id, student_id, lesson_date, step_type, score, max_score, completion_type,
-       units!inner(name, content_group_id),
-       users!inner(display_name)`
-    )
-    .order("lesson_date", { ascending: false })
-    .limit(50)) as {
-    data: Array<{
-      id: string;
-      student_id: string;
-      lesson_date: string;
-      step_type: string;
-      score: number | null;
-      max_score: number | null;
-      completion_type: string | null;
-      units: { name: string; content_group_id: string };
-      users: { display_name: string };
-    }> | null;
-  };
-
-  const { data: contentGroups } = (await supabase
-    .from("content_groups")
-    .select("id, name")) as { data: Array<{ id: string; name: string }> | null };
-
-  const cgNameMap: Record<string, string> = {};
-  if (contentGroups) {
-    for (const cg of contentGroups) {
-      cgNameMap[cg.id] = cg.name;
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -107,17 +73,6 @@ export default async function StudentsPage() {
             scheduleNote: s.schedule_note,
             isActive: s.is_active,
             subjects: s.student_subjects?.map((ss) => ss.subjects?.name).filter(Boolean) ?? [],
-          }))}
-          recentRecords={(recentRecords ?? []).map((r) => ({
-            id: r.id,
-            studentId: r.student_id,
-            lessonDate: r.lesson_date,
-            stepType: r.step_type,
-            score: r.score,
-            maxScore: r.max_score,
-            unitName: r.units?.name ?? "",
-            contentGroupName: cgNameMap[r.units?.content_group_id ?? ""] ?? "",
-            instructor: r.users?.display_name ?? "",
           }))}
         />
       )}

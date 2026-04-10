@@ -485,9 +485,9 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
 
             {/* Selected day records */}
             {selectedDay && (
-              <Card>
-                <CardHeader className="py-3 px-4">
-                  <CardTitle className="text-sm font-semibold">
+              <Card className="border-primary/30 shadow-sm">
+                <CardHeader className="py-3 px-4 bg-primary/5 rounded-t-xl border-b border-primary/10">
+                  <CardTitle className="text-sm font-semibold text-primary">
                     {selectedDay} の授業記録（{selectedDayRecords.length}件）
                   </CardTitle>
                 </CardHeader>
@@ -498,24 +498,43 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
                     selectedDayRecords.map((r, i) => {
                       const unit = unitMap.get(r.unit_id);
                       const cg = unit ? cgMap.get(unit.content_group_id) : null;
+                      const passed = r.completion_type === "passed" || r.completion_type === "step1_perfect";
+                      const scoreRatio = r.score != null && r.max_score != null && r.max_score > 0
+                        ? r.score / r.max_score : null;
+                      const scoreLow = scoreRatio !== null && scoreRatio < 0.8;
                       return (
                         <div key={r.id}>
                           {i > 0 && <Separator />}
-                          <div className="px-4 py-2.5 flex items-center gap-3">
-                            <Badge variant="secondary" className="text-[9px] h-4 px-1.5 font-semibold shrink-0">
+                          <div className="px-4 py-3 flex items-start gap-3">
+                            <Badge
+                              variant="secondary"
+                              className="text-[9px] h-4 px-1.5 font-semibold shrink-0 mt-0.5"
+                            >
                               {stepLabel(r.step_type)}
                             </Badge>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">
                                 {unit?.name ?? "—"}
                               </p>
-                              <p className="text-[11px] text-muted-foreground truncate">
+                              <p className="text-xs text-muted-foreground truncate mt-0.5">
                                 {cg?.name ?? "—"} · {r.users?.display_name ?? ""}
                               </p>
+                              {r.comment && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                  {r.comment}
+                                </p>
+                              )}
                             </div>
-                            <span className="text-sm font-semibold tabular-nums shrink-0">
-                              {r.score != null ? `${r.score}/${r.max_score}` : "—"}
-                            </span>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className={`text-sm font-bold tabular-nums ${
+                                passed ? "text-emerald-600" : scoreLow ? "text-amber-600" : ""
+                              }`}>
+                                {r.score != null ? `${r.score}/${r.max_score}` : "—"}
+                              </span>
+                              {passed && (
+                                <span className="text-[10px] text-emerald-600 font-medium">合格</span>
+                              )}
+                            </div>
                             <RecordActions
                               record={r}
                               visibleUnits={(allUnits ?? []).map((unit) => ({
