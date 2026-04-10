@@ -10,9 +10,10 @@ import {
   ChevronRight,
   Pencil,
 } from "lucide-react";
-import type { ContentCategory } from "@/lib/types/supabase";
+import type { ContentCategory, StepType, UserRole } from "@/lib/types/supabase";
 import { enrollmentLabel, stepLabel } from "@/lib/constants";
 import ReportButton from "./report-button";
+import RecordActions from "./record-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -60,6 +61,17 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
   const { id } = await params;
   const { month: monthParam, day: dayParam } = await searchParams;
   const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: currentUserProfile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user?.id ?? "")
+    .single() as { data: { role: UserRole } | null };
+  const currentUser = {
+    id: user?.id ?? "",
+    role: currentUserProfile?.role ?? ("instructor" as UserRole),
+  };
 
   const { data: student } = (await supabase
     .from("students")
@@ -135,7 +147,8 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
   const { data: records } = (await supabase
     .from("lesson_records")
     .select(
-      `id, unit_id, step_type, score, max_score, lesson_date, completion_type,
+      `id, unit_id, instructor_id, step_type, score, max_score, score_source,
+       lesson_date, completion_type, comment,
        users!inner(display_name)`
     )
     .eq("student_id", id)
@@ -143,11 +156,14 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
     data: Array<{
       id: string;
       unit_id: string;
-      step_type: string;
+      instructor_id: string;
+      step_type: StepType;
       score: number | null;
       max_score: number | null;
+      score_source: string | null;
       lesson_date: string;
       completion_type: string | null;
+      comment: string | null;
       users: { display_name: string };
     }> | null;
   };
@@ -500,6 +516,15 @@ export default async function StudentDetailPage({ params, searchParams }: Props)
                             <span className="text-sm font-semibold tabular-nums shrink-0">
                               {r.score != null ? `${r.score}/${r.max_score}` : "—"}
                             </span>
+                            <RecordActions
+                              record={r}
+                              visibleUnits={(allUnits ?? []).map((unit) => ({
+                                ...unit,
+                                content_group_name: cgMap.get(unit.content_group_id)?.name ?? "—",
+                              }))}
+                              currentUserId={currentUser.id}
+                              currentUserRole={currentUser.role}
+                            />
                           </div>
                         </div>
                       );

@@ -180,6 +180,9 @@ export interface Database {
           comment?: string | null;
         };
         Update: {
+          lesson_date?: string;
+          step_type?: StepType;
+          unit_id?: string;
           score?: number | null;
           max_score?: number | null;
           score_source?: ScoreSource | null;

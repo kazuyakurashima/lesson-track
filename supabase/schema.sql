@@ -210,10 +210,21 @@ CREATE POLICY "Authenticated users can insert lesson_records"
   TO authenticated
   WITH CHECK (instructor_id = auth.uid());
 
-CREATE POLICY "Instructors can update own records"
+CREATE POLICY "Instructors or admins can update records"
   ON lesson_records FOR UPDATE
   TO authenticated
-  USING (instructor_id = auth.uid());
+  USING (
+    instructor_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Instructors or admins can delete records"
+  ON lesson_records FOR DELETE
+  TO authenticated
+  USING (
+    instructor_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+  );
 
 -- Indexes for common queries
 CREATE INDEX idx_lesson_records_student_date ON lesson_records(student_id, lesson_date DESC);
@@ -289,6 +300,11 @@ CREATE POLICY "Authenticated users can upload answer sheets"
 
 CREATE POLICY "Authenticated users can read answer sheets"
   ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'answer-sheets');
+
+CREATE POLICY "Authenticated users can delete answer sheets"
+  ON storage.objects FOR DELETE
   TO authenticated
   USING (bucket_id = 'answer-sheets');
 

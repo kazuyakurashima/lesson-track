@@ -20,7 +20,8 @@ import type {
   Mode,
 } from "@/lib/types/lesson-record";
 import { todayJST } from "@/lib/date-utils";
-import { SCORE_PASS_THRESHOLD, AI_CONFIDENCE_HIGH, AI_CONFIDENCE_MINIMUM } from "@/lib/constants";
+import { AI_CONFIDENCE_HIGH, AI_CONFIDENCE_MINIMUM } from "@/lib/constants";
+import { calcCompletionType, calcScoreSource } from "@/lib/lesson-record-utils";
 import { useStudentData } from "@/hooks/use-student-data";
 import { useAiAnalysis } from "@/hooks/use-ai-analysis";
 import { useRecommendations } from "@/hooks/use-recommendations";
@@ -149,36 +150,8 @@ export default function RecordPage() {
     const scoreNum = score ? parseInt(score) : null;
     const maxScoreNum = maxScore ? parseInt(maxScore) : null;
 
-    // Determine completion_type
-    let completionType: string | null = null;
-    if (
-      selectedStepType === "step2" &&
-      scoreNum !== null &&
-      maxScoreNum !== null &&
-      maxScoreNum > 0 &&
-      scoreNum / maxScoreNum >= SCORE_PASS_THRESHOLD
-    ) {
-      completionType = "passed";
-    }
-    if (
-      selectedStepType === "step1" &&
-      scoreNum !== null &&
-      maxScoreNum !== null &&
-      scoreNum === maxScoreNum
-    ) {
-      completionType = "step1_perfect";
-    }
-
-    // Determine score_source
-    let scoreSource: string | null = null;
-    if (scoreNum !== null) {
-      if (aiResult) {
-        scoreSource =
-          scoreNum === aiResult.score ? "ai_extracted" : "ai_corrected";
-      } else {
-        scoreSource = "manual";
-      }
-    }
+    const completionType = calcCompletionType(selectedStepType, scoreNum, maxScoreNum);
+    const scoreSource = calcScoreSource(scoreNum, aiResult?.score);
 
     const { data: record, error } = await supabase
       .from("lesson_records")
