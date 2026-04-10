@@ -179,7 +179,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          東進育英舎 単元別強化講座 v0.1.0
+          東進育英舎 単元別強化講座 v{process.env.npm_package_version}
         </p>
       </div>
     </div>
