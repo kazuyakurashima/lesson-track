@@ -36,7 +36,7 @@ const navItems = [
   { href: "/", label: "ホーム", icon: Home },
   { href: "/record", label: "記録", icon: PenSquare },
   { href: "/students", label: "生徒", icon: Users },
-  { href: "/settings", label: "設定", icon: Settings },
+  { href: "/settings", label: "マイページ", icon: Settings },
 ];
 
 export function AppShell({
